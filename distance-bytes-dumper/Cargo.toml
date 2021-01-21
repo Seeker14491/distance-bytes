@@ -1,0 +1,12 @@
+[package]
+name = "distance-bytes-dumper"
+version = "0.1.0"
+authors = ["Brian Bowman <seeker14491@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1"
+distance-bytes = { path = "../distance-bytes" }
+serde_json = "1"
+serde_yaml = "0.8"
+structopt = "0.3"
