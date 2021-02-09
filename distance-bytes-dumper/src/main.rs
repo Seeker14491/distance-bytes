@@ -24,7 +24,15 @@ fn main() -> Result<(), Error> {
         }
     };
 
-    let game_object = distance_bytes::deserialize_game_object(&input)?;
+    let game_object = {
+        match distance_bytes::deserialize_game_object(&input) {
+            Ok(x) => x,
+            Err(e) => {
+                eprintln!("{}", e);
+                std::process::exit(-1);
+            }
+        }
+    };
 
     let output_fn: fn(Box<dyn Write>, &GameObject) -> Result<(), Error> = match output_format {
         OutputFormat::Json => |writer, value| Ok(serde_json::to_writer(writer, value)?),

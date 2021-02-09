@@ -5,8 +5,9 @@ authors = ["Brian Bowman <seeker14491@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+arrayvec = "0.5"
+combine = "4"
 enum-primitive-derive = "0.2"
-function-epilogue = { path = "./function-epilogue" }
 mint = { version = "0.5", features = ["serde"] }
 nom = "6"
 num-traits = "0.2"

@@ -1,105 +1,161 @@
-use crate::{
-    domain::GameObject,
-    serialization::{
-        error::{failure, BytesDeserializeError, BytesDeserializeErrorKind, SliceWithOffset},
-        string::string,
-    },
-};
-use mint::{Quaternion, Vector3};
-use nom::{
-    bytes::complete::take,
-    multi::{count, fill},
-    number::complete::{le_f32, le_i32, le_i64, le_u32},
-    IResult, Parser,
-};
-use std::convert::TryInto;
-
 mod component;
-pub(crate) mod error;
 mod string;
 
-type BytesParseResult<'a, O> = IResult<Input<'a>, O, BytesDeserializeError>;
-type Input<'a> = SliceWithOffset<'a, u8>;
+use crate::{
+    serialization::{component::component, string::string},
+    util, GameObject,
+};
+use arrayvec::ArrayVec;
+use combine::{
+    attempt,
+    error::StreamError,
+    parser::{
+        byte::num::{le_f32, le_i32, le_i64, le_u32},
+        range::{length_prefix, range},
+        repeat::count_min_max,
+    },
+    stream::PointerOffset,
+    EasyParser, Parser as _, RangeStream, Stream,
+};
+use mint::{Quaternion, Vector3};
+use std::convert::TryFrom;
 
-pub(crate) fn read_game_object(input: Input<'_>) -> BytesParseResult<'_, GameObject> {
-    let (after_game_object, (scope_mark, scope)) = read_scope(input)?;
-    if scope_mark != 66666666 {
-        return Err(failure(input, BytesDeserializeErrorKind::GameObject));
-    }
+type Input<'a> = combine::easy::Stream<&'a [u8]>;
+type Error<'a> = combine::easy::Error<u8, &'a [u8]>;
 
-    let (scope, name) = string(scope)?;
-    let (scope, prefab) = string(scope)?;
-    let (scope, guid) = le_u32(scope)?;
+pub(crate) fn finalize_errors(
+    initial_slice: &[u8],
+    errors: combine::easy::Errors<u8, &[u8], PointerOffset<[u8]>>,
+) -> combine::easy::Errors<u8, String, usize> {
+    let errors = errors.map_position(|pos| pos.translate_position(initial_slice));
+    errors.map_range(|range| util::format_byte_slice(range, 10))
+}
 
-    let err_input = scope;
-    let (scope, num_components) = le_i32(scope)?;
-    let num_components: usize = num_components
-        .try_into()
-        .map_err(|_| failure(err_input, BytesDeserializeErrorKind::GameObject))?;
+// #[derive(Debug, PartialEq)]
+// pub struct BytesParseError<'a> {
+//     offset: usize,
+//     errors: Vec<combine::stream::easy::Error<u8, &'a [u8]>>,
+// }
+//
+// impl<'a> BytesParseError<'a> {
+//     pub(crate) fn new(
+//         initial_slice: &[u8],
+//         errors: combine::easy::Errors<u8, &'a [u8], PointerOffset<[u8]>>,
+//     ) -> Self {
+//         BytesParseError {
+//             offset: errors.position.translate_position(initial_slice),
+//             errors: errors.errors,
+//         }
+//     }
+// }
+//
+// impl<'a> Display for BytesParseError<'a> {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+//         write!(f, "Error at offset {}", self.offset)?;
+//         if self.errors.is_empty() {
+//             writeln!(f, ".")?;
+//         } else {
+//             writeln!(f, ":")?;
+//         }
+//
+//         for error in &self.errors {
+//             match error {
+//                 Error::Unexpected(c) => writeln!(f, "Unexpected `{}`", c)?,
+//                 Error::Expected(s) => writeln!(f, "Unexpected `{}`", s)?,
+//                 Error::Message(msg) => msg.fmt(f)?,
+//                 Error::Other(err) => err.fmt(f)?,
+//             }
+//         }
+//
+//         Ok(())
+//     }
+// }
+//
+// impl<'a> std::error::Error for BytesParseError<'a> {}
 
-    let (_scope, components) = count(component::component, num_components)(scope)?;
+pub(crate) trait Parser<'a, O>: combine::Parser<Input<'a>, Output = O> {}
+impl<'a, O, T> Parser<'a, O> for T where T: combine::Parser<Input<'a>, Output = O> {}
 
-    let game_object = GameObject {
-        name,
-        prefab,
-        guid,
-        components,
+pub(crate) fn game_object<'a>() -> impl Parser<'a, GameObject> {
+    let game_object_scope = scope_with_scope_mark_satisfying(|x| x == 66666666);
+
+    game_object_scope.flat_map(|(_scope_mark, data)| {
+        let name = string();
+        let prefab = string();
+        let guid = le_u32();
+        let num_components = le_i32().and_then(usize::try_from);
+        let components = num_components.then(|n| count_min_max(n, n, component()));
+
+        let ((name, prefab, guid, components), _input) =
+            (name, prefab, guid, components).easy_parse(data)?;
+
+        let game_object = GameObject {
+            name,
+            prefab,
+            guid,
+            components,
+        };
+
+        Ok(game_object)
+    })
+}
+
+fn scope<'a>() -> impl Parser<'a, (i32, &'a [u8])> {
+    let scope_data = length_prefix(le_i64());
+
+    (scope_mark(), scope_data)
+}
+
+fn scope_with_scope_mark_satisfying<'a>(
+    f: impl FnMut(i32) -> bool,
+) -> impl Parser<'a, (i32, &'a [u8])> {
+    let scope_data = length_prefix(le_i64());
+
+    (scope_mark_satisfying(f), scope_data)
+}
+
+fn scope_mark<'a>() -> impl Parser<'a, i32> {
+    le_i32()
+}
+
+fn scope_mark_satisfying<'a>(mut f: impl FnMut(i32) -> bool) -> impl Parser<'a, i32> {
+    scope_mark().and_then(move |mark| {
+        if f(mark) {
+            Ok(mark)
+        } else {
+            Err(Error::unexpected_format(format!("scope mark {}", mark)))
+        }
+    })
+}
+
+fn vector_3<'a>() -> impl Parser<'a, Option<Vector3<f32>>> {
+    let p = || {
+        count_min_max(3, 3, le_f32())
+            .map(|buf: ArrayVec<[f32; 3]>| buf.into_inner().unwrap().into())
     };
 
-    Ok((after_game_object, game_object))
+    optional(p)
 }
 
-fn read_scope(input: Input<'_>) -> BytesParseResult<'_, (i32, Input<'_>)> {
-    let (input, scope_mark) = read_scope_mark(input)?;
-    let err_input = input;
-    let (input, scope_len) = le_i64(input)?;
-    let scope_len: usize = scope_len
-        .try_into()
-        .map_err(|_| failure(err_input, BytesDeserializeErrorKind::Scope))?;
+fn quaternion<'a>() -> impl Parser<'a, Option<Quaternion<f32>>> {
+    let p = || {
+        count_min_max(4, 4, le_f32())
+            .map(|buf: ArrayVec<[f32; 4]>| buf.into_inner().unwrap().into())
+    };
 
-    let (input, scope_data) = take(scope_len)(input)?;
-
-    Ok((input, (scope_mark, scope_data)))
+    optional(p)
 }
 
-fn read_scope_mark(input: Input<'_>) -> BytesParseResult<'_, i32> {
-    le_i32(input)
-}
-
-fn read_vector_3(input: Input<'_>) -> BytesParseResult<'_, Option<Vector3<f32>>> {
-    make_optional_read(read_vector_3_raw)(input)
-}
-
-fn read_vector_3_raw(input: Input<'_>) -> BytesParseResult<'_, Vector3<f32>> {
-    let mut buf = [0.0_f32; 3];
-    let (input, _) = fill(le_f32, &mut buf)(input)?;
-
-    Ok((input, Vector3::from(buf)))
-}
-
-fn read_quaternion(input: Input<'_>) -> BytesParseResult<'_, Option<Quaternion<f32>>> {
-    make_optional_read(read_quaternion_raw)(input)
-}
-
-fn read_quaternion_raw(input: Input<'_>) -> BytesParseResult<'_, Quaternion<f32>> {
-    let mut buf = [0.0_f32; 4];
-    let (input, _) = fill(le_f32, &mut buf)(input)?;
-
-    Ok((input, Quaternion::from(buf)))
-}
-
-fn make_optional_read<'a, O, F>(
-    mut f: F,
-) -> impl FnMut(Input<'a>) -> BytesParseResult<'a, Option<O>>
+fn optional<'a, I, P>(
+    mut f: impl FnMut() -> P,
+) -> impl combine::Parser<I, Output = Option<P::Output>> + 'a
 where
-    F: Parser<Input<'a>, O, BytesDeserializeError>,
+    I: Stream<Token = u8, Range = &'a [u8]> + RangeStream + 'a,
+    P: combine::Parser<I> + 'a,
+    P::Output: Clone,
 {
-    move |input| match le_i32::<_, BytesDeserializeError>(input) {
-        Ok((input, n)) if n == 0x7FFF_FFFD => Ok((input, None)),
-        _ => {
-            let (input, value) = f.parse(input)?;
+    const EMPTY_MARKER: &[u8] = &0x7FFF_FFFD_i32.to_le_bytes();
 
-            Ok((input, Some(value)))
-        }
-    }
+    let empty = range(EMPTY_MARKER).map(|_| None);
+    attempt(empty).or(f().map(Some))
 }

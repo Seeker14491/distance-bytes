@@ -1,4 +1,4 @@
-use std::{fmt, fmt::Formatter};
+use std::fmt::Write;
 
 pub(crate) fn f32_max(a: f32, b: f32) -> f32 {
     if a > b {
@@ -8,22 +8,22 @@ pub(crate) fn f32_max(a: f32, b: f32) -> f32 {
     }
 }
 
-pub(crate) fn write_pretty_input(
-    f: &mut Formatter<'_>,
-    input: &[u8],
-    num_bytes_to_print: usize,
-) -> fmt::Result {
-    write!(f, "(hex) [")?;
-    for (i, byte) in input.iter().take(num_bytes_to_print).enumerate() {
-        write!(f, "{:02X}", byte)?;
-        if i != num_bytes_to_print - 1 {
-            write!(f, " ")?;
+pub(crate) fn format_byte_slice(slice: &[u8], max_bytes_to_print: usize) -> String {
+    let mut s = String::new();
+
+    write!(&mut s, "(hex) [").unwrap();
+    for (i, byte) in slice.iter().take(max_bytes_to_print).enumerate() {
+        write!(&mut s, "{:02X}", byte).unwrap();
+        if i != max_bytes_to_print - 1 {
+            write!(&mut s, " ").unwrap();
         }
     }
 
-    if input.len() > num_bytes_to_print {
-        write!(f, " ...")?;
+    if slice.len() > max_bytes_to_print {
+        write!(&mut s, " ...").unwrap();
     }
 
-    write!(f, "]")
+    write!(&mut s, "]").unwrap();
+
+    s
 }

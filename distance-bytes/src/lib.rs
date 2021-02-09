@@ -11,14 +11,16 @@ mod domain;
 mod serialization;
 mod util;
 
-pub use crate::{domain::GameObject, serialization::error::BytesDeserializeError};
+pub use crate::domain::GameObject;
+use combine::EasyParser;
 
-use nom::Finish;
-
-pub fn deserialize_game_object(data: &[u8]) -> Result<GameObject, BytesDeserializeError> {
-    serialization::read_game_object(data.into())
-        .finish()
-        .map(|(_, game_object)| game_object)
+pub fn deserialize_game_object(
+    data: &[u8],
+) -> Result<GameObject, combine::easy::Errors<u8, String, usize>> {
+    serialization::game_object()
+        .easy_parse(data)
+        .map(|x| x.0)
+        .map_err(|e| serialization::finalize_errors(data, e))
 }
 
 pub fn serialize_game_object(_game_object: GameObject) -> Vec<u8> {

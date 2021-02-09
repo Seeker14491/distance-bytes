@@ -3,339 +3,688 @@ use crate::{
         component::{Component, ComponentData, RawComponentData, Transform},
         ComponentId,
     },
-    serialization,
     serialization::{
-        error::{BytesDeserializeErrorKind, SliceWithOffset},
-        failure, BytesParseResult, Input,
+        game_object, quaternion, scope_with_scope_mark_satisfying, vector_3, Error, Parser,
     },
     util,
 };
-use mint::{Quaternion, Vector3};
-use nom::{
-    bytes::complete::take,
-    combinator::all_consuming,
-    multi::many_m_n,
-    number::complete::{le_i32, le_i64, le_u32},
+use combine::{
+    count_min_max, error,
+    error::StreamError,
+    parser::{
+        byte::num::{le_i32, le_u32},
+        combinator::no_partial,
+        range::take_while,
+    },
+    unexpected, value, EasyParser, Parser as _,
 };
+use mint::{Quaternion, Vector3};
 use num_traits::FromPrimitive;
-use std::convert::TryInto;
+use std::convert::TryFrom;
 
-pub fn component(input: Input<'_>) -> BytesParseResult<'_, Component> {
-    let (after_component, (scope_mark, scope)) = serialization::read_scope(input)?;
-    if ![33333333, 22222222, 32323232, 23232323].contains(&scope_mark) {
-        return Err(failure(input, BytesDeserializeErrorKind::Component(None)));
-    }
+pub(crate) fn component<'a>() -> impl Parser<'a, Component> {
+    let start =
+        scope_with_scope_mark_satisfying(|x| [33333333, 22222222, 32323232, 23232323].contains(&x));
 
-    if scope_mark == 23232323 {
-        todo!()
-    }
+    let id = || {
+        le_i32().and_then(|n| {
+            ComponentId::from_i32(n)
+                .ok_or_else(|| Error::message_format(format!("unknown component id {}", n)))
+        })
+    };
+    let version = le_i32;
+    let guid = le_u32;
 
-    let err_input = scope;
-    let (scope, id) = le_i32(scope)?;
-    let id = ComponentId::from_i32(id)
-        .ok_or_else(|| failure(err_input, BytesDeserializeErrorKind::Component(None)))?;
+    start
+        .flat_map(move |(scope_mark, data)| {
+            if scope_mark == 23232323 {
+                todo!("components with scope mark \"23232323\" are not implemented yet")
+            }
 
-    let (scope, version) = le_i32(scope)?;
-    let (scope, guid) = le_u32(scope)?;
-
-    let (_, component) = all_consuming(|input| make_component(id, version, guid, input))(scope)?;
-
-    Ok((after_component, component))
+            (id(), version(), guid()).easy_parse(data)
+        })
+        .flat_map(|((id, version, guid), data)| {
+            (value(guid), component_data(id, version, guid))
+                .easy_parse(data)
+                .map(|x| x.0)
+        })
+        .map(|(guid, component_data)| Component {
+            guid,
+            data: component_data,
+        })
 }
 
-fn make_component(
+#[rustfmt::skip]
+fn component_data<'a>(
     component_id: ComponentId,
     _version: i32,
-    guid: u32,
-    data: Input<'_>,
-) -> BytesParseResult<'_, Component> {
-    let input_returned_on_success = SliceWithOffset {
-        slice: &[],
-        offset: data.offset + data.slice.len(),
+    _guid: u32,
+) -> impl Parser<'a, ComponentData> {
+    let make = |f: fn(&[u8]) -> ComponentData| {
+        no_partial(take_while(|_| true).map(f)).boxed()
     };
 
-    #[rustfmt::skip]
-    let (input, component_data) = match component_id {
+    match component_id {
         ComponentId::Transform => {
-            let (input, transform) = transform(data)?;
-            (input, ComponentData::Transform(transform))
+            no_partial(transform().map(ComponentData::Transform)).boxed()
         }
-        ComponentId::MeshRenderer => (input_returned_on_success, ComponentData::MeshRenderer(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TextMesh => (input_returned_on_success, ComponentData::TextMesh(RawComponentData(data.slice.to_vec()))),
-        ComponentId::Light => (input_returned_on_success, ComponentData::Light(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LensFlare => (input_returned_on_success, ComponentData::LensFlare(RawComponentData(data.slice.to_vec()))),
-        ComponentId::Projector => (input_returned_on_success, ComponentData::Projector(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SphereCollider => (input_returned_on_success, ComponentData::SphereCollider(RawComponentData(data.slice.to_vec()))),
-        ComponentId::BoxCollider => (input_returned_on_success, ComponentData::BoxCollider(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CapsuleCollider => (input_returned_on_success, ComponentData::CapsuleCollider(RawComponentData(data.slice.to_vec()))),
-        ComponentId::BezierSplineTrack => (input_returned_on_success, ComponentData::BezierSplineTrack(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TrackSegment => (input_returned_on_success, ComponentData::TrackSegment(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TrackLink => (input_returned_on_success, ComponentData::TrackLink(RawComponentData(data.slice.to_vec()))),
-        ComponentId::RigidbodyAxisRotationLogic => (input_returned_on_success, ComponentData::RigidbodyAxisRotationLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::BackAndForthSawLogic => (input_returned_on_success, ComponentData::BackAndForthSawLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CheckpointLogic => (input_returned_on_success, ComponentData::CheckpointLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LightFlickerLogic => (input_returned_on_success, ComponentData::LightFlickerLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::Group => (input_returned_on_success, ComponentData::Group(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TutorialBoxText => (input_returned_on_success, ComponentData::TutorialBoxText(RawComponentData(data.slice.to_vec()))),
-        ComponentId::FlyingRingLogic => (input_returned_on_success, ComponentData::FlyingRingLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::PopupBlockerLogic => (input_returned_on_success, ComponentData::PopupBlockerLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::PulseLight => (input_returned_on_success, ComponentData::PulseLight(RawComponentData(data.slice.to_vec()))),
-        ComponentId::PulseMaterial => (input_returned_on_success, ComponentData::PulseMaterial(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SmoothRandomPosition => (input_returned_on_success, ComponentData::SmoothRandomPosition(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SoccerGoalLogic => (input_returned_on_success, ComponentData::SoccerGoalLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::VirusMineLogic => (input_returned_on_success, ComponentData::VirusMineLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::BrightenCarHeadlights => (input_returned_on_success, ComponentData::BrightenCarHeadlights(RawComponentData(data.slice.to_vec()))),
-        ComponentId::GameData => (input_returned_on_success, ComponentData::GameData(RawComponentData(data.slice.to_vec()))),
-        ComponentId::GraphicsSettings => (input_returned_on_success, ComponentData::GraphicsSettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AudioSettings => (input_returned_on_success, ComponentData::AudioSettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ControlsSettings => (input_returned_on_success, ComponentData::ControlsSettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::Profile => (input_returned_on_success, ComponentData::Profile(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ToolInputCombos => (input_returned_on_success, ComponentData::ToolInputCombos(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ColorPreset => (input_returned_on_success, ComponentData::ColorPreset(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LocalLeaderboard => (input_returned_on_success, ComponentData::LocalLeaderboard(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AxisRotationLogic => (input_returned_on_success, ComponentData::AxisRotationLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ParticleEmitLogic => (input_returned_on_success, ComponentData::ParticleEmitLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::VirusSpiritSpawner => (input_returned_on_success, ComponentData::VirusSpiritSpawner(RawComponentData(data.slice.to_vec()))),
-        ComponentId::PulseRotateOnTrigger => (input_returned_on_success, ComponentData::PulseRotateOnTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TeleporterEntrance => (input_returned_on_success, ComponentData::TeleporterEntrance(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TeleporterExit => (input_returned_on_success, ComponentData::TeleporterExit(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ControlScheme => (input_returned_on_success, ComponentData::ControlScheme(RawComponentData(data.slice.to_vec()))),
-        ComponentId::DeviceToSchemeLinks => (input_returned_on_success, ComponentData::DeviceToSchemeLinks(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ObjectSpawnCircle => (input_returned_on_success, ComponentData::ObjectSpawnCircle(RawComponentData(data.slice.to_vec()))),
-        ComponentId::InterpolateToPositionOnTrigger => (input_returned_on_success, ComponentData::InterpolateToPositionOnTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::EngageBrokenPieces => (input_returned_on_success, ComponentData::EngageBrokenPieces(RawComponentData(data.slice.to_vec()))),
-        ComponentId::GravityToggle => (input_returned_on_success, ComponentData::GravityToggle(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CarSpawner => (input_returned_on_success, ComponentData::CarSpawner(RawComponentData(data.slice.to_vec()))),
-        ComponentId::RaceStartCarSpawner => (input_returned_on_success, ComponentData::RaceStartCarSpawner(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LevelEditorCarSpawner => (input_returned_on_success, ComponentData::LevelEditorCarSpawner(RawComponentData(data.slice.to_vec()))),
-        ComponentId::InfoDisplayLogic => (input_returned_on_success, ComponentData::InfoDisplayLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::MusicTrigger => (input_returned_on_success, ComponentData::MusicTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TabPopulator => (input_returned_on_success, ComponentData::TabPopulator(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AdventureAbilitySettings => (input_returned_on_success, ComponentData::AdventureAbilitySettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::IndicatorDisplayLogic => (input_returned_on_success, ComponentData::IndicatorDisplayLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::PulseCoreLogic => (input_returned_on_success, ComponentData::PulseCoreLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::PulseAll => (input_returned_on_success, ComponentData::PulseAll(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TeleporterExitCheckpoint => (input_returned_on_success, ComponentData::TeleporterExitCheckpoint(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LevelSettings => (input_returned_on_success, ComponentData::LevelSettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::WingCorruptionZone => (input_returned_on_success, ComponentData::WingCorruptionZone(RawComponentData(data.slice.to_vec()))),
-        ComponentId::GenerateCreditsNames => (input_returned_on_success, ComponentData::GenerateCreditsNames(RawComponentData(data.slice.to_vec()))),
-        ComponentId::IntroCutsceneLightFadeIn => (input_returned_on_success, ComponentData::IntroCutsceneLightFadeIn(RawComponentData(data.slice.to_vec()))),
-        ComponentId::QuarantineTrigger => (input_returned_on_success, ComponentData::QuarantineTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CarScreenTextDecodeTrigger => (input_returned_on_success, ComponentData::CarScreenTextDecodeTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::GlitchFieldLogic => (input_returned_on_success, ComponentData::GlitchFieldLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::FogSkyboxAmbientChangeTrigger => (input_returned_on_success, ComponentData::FogSkyboxAmbientChangeTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::FinalCountdownLogic => (input_returned_on_success, ComponentData::FinalCountdownLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SetActiveOnIntroCutsceneStarted => (input_returned_on_success, ComponentData::SetActiveOnIntroCutsceneStarted(RawComponentData(data.slice.to_vec()))),
-        ComponentId::RaceEndLogic => (input_returned_on_success, ComponentData::RaceEndLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::EnableAbilitiesTrigger => (input_returned_on_success, ComponentData::EnableAbilitiesTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SphericalGravity => (input_returned_on_success, ComponentData::SphericalGravity(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CreditsNameOrbLogic => (input_returned_on_success, ComponentData::CreditsNameOrbLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::DisableLocalCarWarnings => (input_returned_on_success, ComponentData::DisableLocalCarWarnings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CustomName => (input_returned_on_success, ComponentData::CustomName(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SplineSegment => (input_returned_on_success, ComponentData::SplineSegment(RawComponentData(data.slice.to_vec()))),
-        ComponentId::WarningPulseLight => (input_returned_on_success, ComponentData::WarningPulseLight(RawComponentData(data.slice.to_vec()))),
-        ComponentId::RumbleZone => (input_returned_on_success, ComponentData::RumbleZone(RawComponentData(data.slice.to_vec()))),
-        ComponentId::HideOnVirusSpiritEvent => (input_returned_on_success, ComponentData::HideOnVirusSpiritEvent(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TrackAttachment => (input_returned_on_success, ComponentData::TrackAttachment(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LevelPlaylist => (input_returned_on_success, ComponentData::LevelPlaylist(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ProfileProgress => (input_returned_on_success, ComponentData::ProfileProgress(RawComponentData(data.slice.to_vec()))),
-        ComponentId::GeneralSettings => (input_returned_on_success, ComponentData::GeneralSettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::WorkshopPublishedFileInfos => (input_returned_on_success, ComponentData::WorkshopPublishedFileInfos(RawComponentData(data.slice.to_vec()))),
-        ComponentId::WarpAnchor => (input_returned_on_success, ComponentData::WarpAnchor(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SetActiveOnMIDIEvent => (input_returned_on_success, ComponentData::SetActiveOnMIDIEvent(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TurnLightOnNearCar => (input_returned_on_success, ComponentData::TurnLightOnNearCar(RawComponentData(data.slice.to_vec()))),
-        ComponentId::Traffic => (input_returned_on_success, ComponentData::Traffic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TrackManipulatorNode => (input_returned_on_success, ComponentData::TrackManipulatorNode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AudioEventTrigger => (input_returned_on_success, ComponentData::AudioEventTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LevelEditorSettings => (input_returned_on_success, ComponentData::LevelEditorSettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::EmpireProximityDoorLogic => (input_returned_on_success, ComponentData::EmpireProximityDoorLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::Biodome => (input_returned_on_success, ComponentData::Biodome(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TunnelHorrorLogic => (input_returned_on_success, ComponentData::TunnelHorrorLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::VirusSpiritWarpTeaserLogic => (input_returned_on_success, ComponentData::VirusSpiritWarpTeaserLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CarReplayData => (input_returned_on_success, ComponentData::CarReplayData(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LevelImageCamera => (input_returned_on_success, ComponentData::LevelImageCamera(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ParticlesGPU => (input_returned_on_success, ComponentData::ParticlesGPU(RawComponentData(data.slice.to_vec()))),
-        ComponentId::KillGridBox => (input_returned_on_success, ComponentData::KillGridBox(RawComponentData(data.slice.to_vec()))),
-        ComponentId::GoldenSimples => (input_returned_on_success, ComponentData::GoldenSimples(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SetActiveAfterWarp => (input_returned_on_success, ComponentData::SetActiveAfterWarp(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AmbientAudioObject => (input_returned_on_success, ComponentData::AmbientAudioObject(RawComponentData(data.slice.to_vec()))),
-        ComponentId::BiodomeAudioInterpolator => (input_returned_on_success, ComponentData::BiodomeAudioInterpolator(RawComponentData(data.slice.to_vec()))),
-        ComponentId::MoveElectricityAlongWire => (input_returned_on_success, ComponentData::MoveElectricityAlongWire(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ActivationRampLogic => (input_returned_on_success, ComponentData::ActivationRampLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ZEventTrigger => (input_returned_on_success, ComponentData::ZEventTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ZEventListener => (input_returned_on_success, ComponentData::ZEventListener(RawComponentData(data.slice.to_vec()))),
-        ComponentId::BlackPortalLogic => (input_returned_on_success, ComponentData::BlackPortalLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::VRSettings => (input_returned_on_success, ComponentData::VRSettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CutsceneCamera => (input_returned_on_success, ComponentData::CutsceneCamera(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ProfileStats => (input_returned_on_success, ComponentData::ProfileStats(RawComponentData(data.slice.to_vec()))),
-        ComponentId::InterpolateToRotationOnTrigger => (input_returned_on_success, ComponentData::InterpolateToRotationOnTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::MoveAlongAttachedTrack => (input_returned_on_success, ComponentData::MoveAlongAttachedTrack(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ShowDuringGlitch => (input_returned_on_success, ComponentData::ShowDuringGlitch(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AddCameraNoise => (input_returned_on_success, ComponentData::AddCameraNoise(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CarVoiceTrigger => (input_returned_on_success, ComponentData::CarVoiceTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::HoverScreenSpecialObjectTrigger => (input_returned_on_success, ComponentData::HoverScreenSpecialObjectTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ReplaySettings => (input_returned_on_success, ComponentData::ReplaySettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CutsceneCamForTrailer => (input_returned_on_success, ComponentData::CutsceneCamForTrailer(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LevelInfos => (input_returned_on_success, ComponentData::LevelInfos(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AchievementTrigger => (input_returned_on_success, ComponentData::AchievementTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ArenaCarSpawner => (input_returned_on_success, ComponentData::ArenaCarSpawner(RawComponentData(data.slice.to_vec()))),
-        ComponentId::Animated => (input_returned_on_success, ComponentData::Animated(RawComponentData(data.slice.to_vec()))),
-        ComponentId::BlinkInTrigger => (input_returned_on_success, ComponentData::BlinkInTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CarScreenImageTrigger => (input_returned_on_success, ComponentData::CarScreenImageTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ExcludeFromEMP => (input_returned_on_success, ComponentData::ExcludeFromEMP(RawComponentData(data.slice.to_vec()))),
-        ComponentId::InfiniteCooldownTrigger => (input_returned_on_success, ComponentData::InfiniteCooldownTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::DiscoverableStuntArea => (input_returned_on_success, ComponentData::DiscoverableStuntArea(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ForceVolume => (input_returned_on_success, ComponentData::ForceVolume(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AdventureModeCompleteTrigger => (input_returned_on_success, ComponentData::AdventureModeCompleteTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CountdownTextMeshLogic => (input_returned_on_success, ComponentData::CountdownTextMeshLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AbilitySignButtonColorLogic => (input_returned_on_success, ComponentData::AbilitySignButtonColorLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::GoldenAnimator => (input_returned_on_success, ComponentData::GoldenAnimator(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AnimatorAudio => (input_returned_on_success, ComponentData::AnimatorAudio(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AnimatorCameraShake => (input_returned_on_success, ComponentData::AnimatorCameraShake(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ShardCluster => (input_returned_on_success, ComponentData::ShardCluster(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AdventureSpecialIntro => (input_returned_on_success, ComponentData::AdventureSpecialIntro(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AudioEffectZone => (input_returned_on_success, ComponentData::AudioEffectZone(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CinematicCamera => (input_returned_on_success, ComponentData::CinematicCamera(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CinematicCameraFocalPoint => (input_returned_on_success, ComponentData::CinematicCameraFocalPoint(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SetAbilitiesTrigger => (input_returned_on_success, ComponentData::SetAbilitiesTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LostToEchoesIntroCutscene => (input_returned_on_success, ComponentData::LostToEchoesIntroCutscene(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CutsceneText => (input_returned_on_success, ComponentData::CutsceneText(RawComponentData(data.slice.to_vec()))),
-        ComponentId::UltraPlanet => (input_returned_on_success, ComponentData::UltraPlanet(RawComponentData(data.slice.to_vec()))),
-        ComponentId::DeadCarLogic => (input_returned_on_success, ComponentData::DeadCarLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::RollingBarrelDropperLogic => (input_returned_on_success, ComponentData::RollingBarrelDropperLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AdventureFinishTrigger => (input_returned_on_success, ComponentData::AdventureFinishTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AchievementSettings => (input_returned_on_success, ComponentData::AchievementSettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::InterpolateRTPCLogic => (input_returned_on_success, ComponentData::InterpolateRTPCLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TriggerCooldownLogic => (input_returned_on_success, ComponentData::TriggerCooldownLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ShadowsChangedListener => (input_returned_on_success, ComponentData::ShadowsChangedListener(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LookAtCamera => (input_returned_on_success, ComponentData::LookAtCamera(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CubeMapRenderer => (input_returned_on_success, ComponentData::CubeMapRenderer(RawComponentData(data.slice.to_vec()))),
-        ComponentId::RealtimeReflectionRenderer => (input_returned_on_success, ComponentData::RealtimeReflectionRenderer(RawComponentData(data.slice.to_vec()))),
-        ComponentId::VirusDropperDroneLogic => (input_returned_on_success, ComponentData::VirusDropperDroneLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::OnCollisionBreakApartLogic => (input_returned_on_success, ComponentData::OnCollisionBreakApartLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CheatSettings => (input_returned_on_success, ComponentData::CheatSettings(RawComponentData(data.slice.to_vec()))),
-        ComponentId::IgnoreInCullGroups => (input_returned_on_success, ComponentData::IgnoreInCullGroups(RawComponentData(data.slice.to_vec()))),
-        ComponentId::IgnoreInputTrigger => (input_returned_on_success, ComponentData::IgnoreInputTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::PowerPosterLogic => (input_returned_on_success, ComponentData::PowerPosterLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::MusicZone => (input_returned_on_success, ComponentData::MusicZone(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LightsFlickerLogic => (input_returned_on_success, ComponentData::LightsFlickerLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CutsceneManagerLogic => (input_returned_on_success, ComponentData::CutsceneManagerLogic(RawComponentData(data.slice.to_vec()))),
-        ComponentId::FadeOut => (input_returned_on_success, ComponentData::FadeOut(RawComponentData(data.slice.to_vec()))),
-        ComponentId::Flock => (input_returned_on_success, ComponentData::Flock(RawComponentData(data.slice.to_vec()))),
-        ComponentId::GPSTrigger => (input_returned_on_success, ComponentData::GPSTrigger(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SprintMode => (input_returned_on_success, ComponentData::SprintMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::StuntMode => (input_returned_on_success, ComponentData::StuntMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SoccerMode => (input_returned_on_success, ComponentData::SoccerMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::FreeRoamMode => (input_returned_on_success, ComponentData::FreeRoamMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ReverseTagMode => (input_returned_on_success, ComponentData::ReverseTagMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LevelEditorPlayMode => (input_returned_on_success, ComponentData::LevelEditorPlayMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::CoopSprintMode => (input_returned_on_success, ComponentData::CoopSprintMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::ChallengeMode => (input_returned_on_success, ComponentData::ChallengeMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::AdventureMode => (input_returned_on_success, ComponentData::AdventureMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::SpeedAndStyleMode => (input_returned_on_success, ComponentData::SpeedAndStyleMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TrackmogrifyMode => (input_returned_on_success, ComponentData::TrackmogrifyMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::DemoMode => (input_returned_on_success, ComponentData::DemoMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::MainMenuMode => (input_returned_on_success, ComponentData::MainMenuMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::LostToEchoesMode => (input_returned_on_success, ComponentData::LostToEchoesMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::NexusMode => (input_returned_on_success, ComponentData::NexusMode(RawComponentData(data.slice.to_vec()))),
-        ComponentId::TheOtherSideMode => (input_returned_on_success, ComponentData::TheOtherSideMode(RawComponentData(data.slice.to_vec()))),
+        ComponentId::MeshRenderer => {
+            make(|data| ComponentData::MeshRenderer(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TextMesh => {
+            make(|data| ComponentData::TextMesh(RawComponentData(data.to_vec())))
+        }
+        ComponentId::Light => {
+            make(|data| ComponentData::Light(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LensFlare => {
+            make(|data| ComponentData::LensFlare(RawComponentData(data.to_vec())))
+        }
+        ComponentId::Projector => {
+            make(|data| ComponentData::Projector(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SphereCollider => {
+            make(|data| ComponentData::SphereCollider(RawComponentData(data.to_vec())))
+        }
+        ComponentId::BoxCollider => {
+            make(|data| ComponentData::BoxCollider(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CapsuleCollider => {
+            make(|data| ComponentData::CapsuleCollider(RawComponentData(data.to_vec())))
+        }
+        ComponentId::BezierSplineTrack => {
+            make(|data| ComponentData::BezierSplineTrack(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TrackSegment => {
+            make(|data| ComponentData::TrackSegment(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TrackLink => {
+            make(|data| ComponentData::TrackLink(RawComponentData(data.to_vec())))
+        }
+        ComponentId::RigidbodyAxisRotationLogic => {
+            make(|data| ComponentData::RigidbodyAxisRotationLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::BackAndForthSawLogic => {
+            make(|data| ComponentData::BackAndForthSawLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CheckpointLogic => {
+            make(|data| ComponentData::CheckpointLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LightFlickerLogic => {
+            make(|data| ComponentData::LightFlickerLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::Group => {
+            make(|data| ComponentData::Group(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TutorialBoxText => {
+            make(|data| ComponentData::TutorialBoxText(RawComponentData(data.to_vec())))
+        }
+        ComponentId::FlyingRingLogic => {
+            make(|data| ComponentData::FlyingRingLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::PopupBlockerLogic => {
+            make(|data| ComponentData::PopupBlockerLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::PulseLight => {
+            make(|data| ComponentData::PulseLight(RawComponentData(data.to_vec())))
+        }
+        ComponentId::PulseMaterial => {
+            make(|data| ComponentData::PulseMaterial(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SmoothRandomPosition => {
+            make(|data| ComponentData::SmoothRandomPosition(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SoccerGoalLogic => {
+            make(|data| ComponentData::SoccerGoalLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::VirusMineLogic => {
+            make(|data| ComponentData::VirusMineLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::BrightenCarHeadlights => {
+            make(|data| ComponentData::BrightenCarHeadlights(RawComponentData(data.to_vec())))
+        }
+        ComponentId::GameData => {
+            make(|data| ComponentData::GameData(RawComponentData(data.to_vec())))
+        }
+        ComponentId::GraphicsSettings => {
+            make(|data| ComponentData::GraphicsSettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AudioSettings => {
+            make(|data| ComponentData::AudioSettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ControlsSettings => {
+            make(|data| ComponentData::ControlsSettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::Profile => {
+            make(|data| ComponentData::Profile(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ToolInputCombos => {
+            make(|data| ComponentData::ToolInputCombos(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ColorPreset => {
+            make(|data| ComponentData::ColorPreset(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LocalLeaderboard => {
+            make(|data| ComponentData::LocalLeaderboard(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AxisRotationLogic => {
+            make(|data| ComponentData::AxisRotationLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ParticleEmitLogic => {
+            make(|data| ComponentData::ParticleEmitLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::VirusSpiritSpawner => {
+            make(|data| ComponentData::VirusSpiritSpawner(RawComponentData(data.to_vec())))
+        }
+        ComponentId::PulseRotateOnTrigger => {
+            make(|data| ComponentData::PulseRotateOnTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TeleporterEntrance => {
+            make(|data| ComponentData::TeleporterEntrance(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TeleporterExit => {
+            make(|data| ComponentData::TeleporterExit(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ControlScheme => {
+            make(|data| ComponentData::ControlScheme(RawComponentData(data.to_vec())))
+        }
+        ComponentId::DeviceToSchemeLinks => {
+            make(|data| ComponentData::DeviceToSchemeLinks(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ObjectSpawnCircle => {
+            make(|data| ComponentData::ObjectSpawnCircle(RawComponentData(data.to_vec())))
+        }
+        ComponentId::InterpolateToPositionOnTrigger => {
+            make(|data| ComponentData::InterpolateToPositionOnTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::EngageBrokenPieces => {
+            make(|data| ComponentData::EngageBrokenPieces(RawComponentData(data.to_vec())))
+        }
+        ComponentId::GravityToggle => {
+            make(|data| ComponentData::GravityToggle(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CarSpawner => {
+            make(|data| ComponentData::CarSpawner(RawComponentData(data.to_vec())))
+        }
+        ComponentId::RaceStartCarSpawner => {
+            make(|data| ComponentData::RaceStartCarSpawner(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LevelEditorCarSpawner => {
+            make(|data| ComponentData::LevelEditorCarSpawner(RawComponentData(data.to_vec())))
+        }
+        ComponentId::InfoDisplayLogic => {
+            make(|data| ComponentData::InfoDisplayLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::MusicTrigger => {
+            make(|data| ComponentData::MusicTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TabPopulator => {
+            make(|data| ComponentData::TabPopulator(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AdventureAbilitySettings => {
+            make(|data| ComponentData::AdventureAbilitySettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::IndicatorDisplayLogic => {
+            make(|data| ComponentData::IndicatorDisplayLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::PulseCoreLogic => {
+            make(|data| ComponentData::PulseCoreLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::PulseAll => {
+            make(|data| ComponentData::PulseAll(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TeleporterExitCheckpoint => {
+            make(|data| ComponentData::TeleporterExitCheckpoint(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LevelSettings => {
+            make(|data| ComponentData::LevelSettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::WingCorruptionZone => {
+            make(|data| ComponentData::WingCorruptionZone(RawComponentData(data.to_vec())))
+        }
+        ComponentId::GenerateCreditsNames => {
+            make(|data| ComponentData::GenerateCreditsNames(RawComponentData(data.to_vec())))
+        }
+        ComponentId::IntroCutsceneLightFadeIn => {
+            make(|data| ComponentData::IntroCutsceneLightFadeIn(RawComponentData(data.to_vec())))
+        }
+        ComponentId::QuarantineTrigger => {
+            make(|data| ComponentData::QuarantineTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CarScreenTextDecodeTrigger => {
+            make(|data| ComponentData::CarScreenTextDecodeTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::GlitchFieldLogic => {
+            make(|data| ComponentData::GlitchFieldLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::FogSkyboxAmbientChangeTrigger => {
+            make(|data| ComponentData::FogSkyboxAmbientChangeTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::FinalCountdownLogic => {
+            make(|data| ComponentData::FinalCountdownLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SetActiveOnIntroCutsceneStarted => {
+            make(|data| ComponentData::SetActiveOnIntroCutsceneStarted(RawComponentData(data.to_vec())))
+        }
+        ComponentId::RaceEndLogic => {
+            make(|data| ComponentData::RaceEndLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::EnableAbilitiesTrigger => {
+            make(|data| ComponentData::EnableAbilitiesTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SphericalGravity => {
+            make(|data| ComponentData::SphericalGravity(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CreditsNameOrbLogic => {
+            make(|data| ComponentData::CreditsNameOrbLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::DisableLocalCarWarnings => {
+            make(|data| ComponentData::DisableLocalCarWarnings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CustomName => {
+            make(|data| ComponentData::CustomName(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SplineSegment => {
+            make(|data| ComponentData::SplineSegment(RawComponentData(data.to_vec())))
+        }
+        ComponentId::WarningPulseLight => {
+            make(|data| ComponentData::WarningPulseLight(RawComponentData(data.to_vec())))
+        }
+        ComponentId::RumbleZone => {
+            make(|data| ComponentData::RumbleZone(RawComponentData(data.to_vec())))
+        }
+        ComponentId::HideOnVirusSpiritEvent => {
+            make(|data| ComponentData::HideOnVirusSpiritEvent(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TrackAttachment => {
+            make(|data| ComponentData::TrackAttachment(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LevelPlaylist => {
+            make(|data| ComponentData::LevelPlaylist(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ProfileProgress => {
+            make(|data| ComponentData::ProfileProgress(RawComponentData(data.to_vec())))
+        }
+        ComponentId::GeneralSettings => {
+            make(|data| ComponentData::GeneralSettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::WorkshopPublishedFileInfos => {
+            make(|data| ComponentData::WorkshopPublishedFileInfos(RawComponentData(data.to_vec())))
+        }
+        ComponentId::WarpAnchor => {
+            make(|data| ComponentData::WarpAnchor(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SetActiveOnMIDIEvent => {
+            make(|data| ComponentData::SetActiveOnMIDIEvent(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TurnLightOnNearCar => {
+            make(|data| ComponentData::TurnLightOnNearCar(RawComponentData(data.to_vec())))
+        }
+        ComponentId::Traffic => {
+            make(|data| ComponentData::Traffic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TrackManipulatorNode => {
+            make(|data| ComponentData::TrackManipulatorNode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AudioEventTrigger => {
+            make(|data| ComponentData::AudioEventTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LevelEditorSettings => {
+            make(|data| ComponentData::LevelEditorSettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::EmpireProximityDoorLogic => {
+            make(|data| ComponentData::EmpireProximityDoorLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::Biodome => {
+            make(|data| ComponentData::Biodome(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TunnelHorrorLogic => {
+            make(|data| ComponentData::TunnelHorrorLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::VirusSpiritWarpTeaserLogic => {
+            make(|data| ComponentData::VirusSpiritWarpTeaserLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CarReplayData => {
+            make(|data| ComponentData::CarReplayData(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LevelImageCamera => {
+            make(|data| ComponentData::LevelImageCamera(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ParticlesGPU => {
+            make(|data| ComponentData::ParticlesGPU(RawComponentData(data.to_vec())))
+        }
+        ComponentId::KillGridBox => {
+            make(|data| ComponentData::KillGridBox(RawComponentData(data.to_vec())))
+        }
+        ComponentId::GoldenSimples => {
+            make(|data| ComponentData::GoldenSimples(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SetActiveAfterWarp => {
+            make(|data| ComponentData::SetActiveAfterWarp(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AmbientAudioObject => {
+            make(|data| ComponentData::AmbientAudioObject(RawComponentData(data.to_vec())))
+        }
+        ComponentId::BiodomeAudioInterpolator => {
+            make(|data| ComponentData::BiodomeAudioInterpolator(RawComponentData(data.to_vec())))
+        }
+        ComponentId::MoveElectricityAlongWire => {
+            make(|data| ComponentData::MoveElectricityAlongWire(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ActivationRampLogic => {
+            make(|data| ComponentData::ActivationRampLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ZEventTrigger => {
+            make(|data| ComponentData::ZEventTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ZEventListener => {
+            make(|data| ComponentData::ZEventListener(RawComponentData(data.to_vec())))
+        }
+        ComponentId::BlackPortalLogic => {
+            make(|data| ComponentData::BlackPortalLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::VRSettings => {
+            make(|data| ComponentData::VRSettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CutsceneCamera => {
+            make(|data| ComponentData::CutsceneCamera(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ProfileStats => {
+            make(|data| ComponentData::ProfileStats(RawComponentData(data.to_vec())))
+        }
+        ComponentId::InterpolateToRotationOnTrigger => {
+            make(|data| ComponentData::InterpolateToRotationOnTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::MoveAlongAttachedTrack => {
+            make(|data| ComponentData::MoveAlongAttachedTrack(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ShowDuringGlitch => {
+            make(|data| ComponentData::ShowDuringGlitch(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AddCameraNoise => {
+            make(|data| ComponentData::AddCameraNoise(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CarVoiceTrigger => {
+            make(|data| ComponentData::CarVoiceTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::HoverScreenSpecialObjectTrigger => {
+            make(|data| ComponentData::HoverScreenSpecialObjectTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ReplaySettings => {
+            make(|data| ComponentData::ReplaySettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CutsceneCamForTrailer => {
+            make(|data| ComponentData::CutsceneCamForTrailer(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LevelInfos => {
+            make(|data| ComponentData::LevelInfos(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AchievementTrigger => {
+            make(|data| ComponentData::AchievementTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ArenaCarSpawner => {
+            make(|data| ComponentData::ArenaCarSpawner(RawComponentData(data.to_vec())))
+        }
+        ComponentId::Animated => {
+            make(|data| ComponentData::Animated(RawComponentData(data.to_vec())))
+        }
+        ComponentId::BlinkInTrigger => {
+            make(|data| ComponentData::BlinkInTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CarScreenImageTrigger => {
+            make(|data| ComponentData::CarScreenImageTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ExcludeFromEMP => {
+            make(|data| ComponentData::ExcludeFromEMP(RawComponentData(data.to_vec())))
+        }
+        ComponentId::InfiniteCooldownTrigger => {
+            make(|data| ComponentData::InfiniteCooldownTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::DiscoverableStuntArea => {
+            make(|data| ComponentData::DiscoverableStuntArea(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ForceVolume => {
+            make(|data| ComponentData::ForceVolume(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AdventureModeCompleteTrigger => {
+            make(|data| ComponentData::AdventureModeCompleteTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CountdownTextMeshLogic => {
+            make(|data| ComponentData::CountdownTextMeshLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AbilitySignButtonColorLogic => {
+            make(|data| ComponentData::AbilitySignButtonColorLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::GoldenAnimator => {
+            make(|data| ComponentData::GoldenAnimator(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AnimatorAudio => {
+            make(|data| ComponentData::AnimatorAudio(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AnimatorCameraShake => {
+            make(|data| ComponentData::AnimatorCameraShake(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ShardCluster => {
+            make(|data| ComponentData::ShardCluster(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AdventureSpecialIntro => {
+            make(|data| ComponentData::AdventureSpecialIntro(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AudioEffectZone => {
+            make(|data| ComponentData::AudioEffectZone(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CinematicCamera => {
+            make(|data| ComponentData::CinematicCamera(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CinematicCameraFocalPoint => {
+            make(|data| ComponentData::CinematicCameraFocalPoint(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SetAbilitiesTrigger => {
+            make(|data| ComponentData::SetAbilitiesTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LostToEchoesIntroCutscene => {
+            make(|data| ComponentData::LostToEchoesIntroCutscene(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CutsceneText => {
+            make(|data| ComponentData::CutsceneText(RawComponentData(data.to_vec())))
+        }
+        ComponentId::UltraPlanet => {
+            make(|data| ComponentData::UltraPlanet(RawComponentData(data.to_vec())))
+        }
+        ComponentId::DeadCarLogic => {
+            make(|data| ComponentData::DeadCarLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::RollingBarrelDropperLogic => {
+            make(|data| ComponentData::RollingBarrelDropperLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AdventureFinishTrigger => {
+            make(|data| ComponentData::AdventureFinishTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AchievementSettings => {
+            make(|data| ComponentData::AchievementSettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::InterpolateRTPCLogic => {
+            make(|data| ComponentData::InterpolateRTPCLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TriggerCooldownLogic => {
+            make(|data| ComponentData::TriggerCooldownLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ShadowsChangedListener => {
+            make(|data| ComponentData::ShadowsChangedListener(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LookAtCamera => {
+            make(|data| ComponentData::LookAtCamera(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CubeMapRenderer => {
+            make(|data| ComponentData::CubeMapRenderer(RawComponentData(data.to_vec())))
+        }
+        ComponentId::RealtimeReflectionRenderer => {
+            make(|data| ComponentData::RealtimeReflectionRenderer(RawComponentData(data.to_vec())))
+        }
+        ComponentId::VirusDropperDroneLogic => {
+            make(|data| ComponentData::VirusDropperDroneLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::OnCollisionBreakApartLogic => {
+            make(|data| ComponentData::OnCollisionBreakApartLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CheatSettings => {
+            make(|data| ComponentData::CheatSettings(RawComponentData(data.to_vec())))
+        }
+        ComponentId::IgnoreInCullGroups => {
+            make(|data| ComponentData::IgnoreInCullGroups(RawComponentData(data.to_vec())))
+        }
+        ComponentId::IgnoreInputTrigger => {
+            make(|data| ComponentData::IgnoreInputTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::PowerPosterLogic => {
+            make(|data| ComponentData::PowerPosterLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::MusicZone => {
+            make(|data| ComponentData::MusicZone(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LightsFlickerLogic => {
+            make(|data| ComponentData::LightsFlickerLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CutsceneManagerLogic => {
+            make(|data| ComponentData::CutsceneManagerLogic(RawComponentData(data.to_vec())))
+        }
+        ComponentId::FadeOut => {
+            make(|data| ComponentData::FadeOut(RawComponentData(data.to_vec())))
+        }
+        ComponentId::Flock => {
+            make(|data| ComponentData::Flock(RawComponentData(data.to_vec())))
+        }
+        ComponentId::GPSTrigger => {
+            make(|data| ComponentData::GPSTrigger(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SprintMode => {
+            make(|data| ComponentData::SprintMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::StuntMode => {
+            make(|data| ComponentData::StuntMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SoccerMode => {
+            make(|data| ComponentData::SoccerMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::FreeRoamMode => {
+            make(|data| ComponentData::FreeRoamMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ReverseTagMode => {
+            make(|data| ComponentData::ReverseTagMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LevelEditorPlayMode => {
+            make(|data| ComponentData::LevelEditorPlayMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::CoopSprintMode => {
+            make(|data| ComponentData::CoopSprintMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::ChallengeMode => {
+            make(|data| ComponentData::ChallengeMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::AdventureMode => {
+            make(|data| ComponentData::AdventureMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::SpeedAndStyleMode => {
+            make(|data| ComponentData::SpeedAndStyleMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TrackmogrifyMode => {
+            make(|data| ComponentData::TrackmogrifyMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::DemoMode => {
+            make(|data| ComponentData::DemoMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::MainMenuMode => {
+            make(|data| ComponentData::MainMenuMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::LostToEchoesMode => {
+            make(|data| ComponentData::LostToEchoesMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::NexusMode => {
+            make(|data| ComponentData::NexusMode(RawComponentData(data.to_vec())))
+        }
+        ComponentId::TheOtherSideMode => {
+            make(|data| ComponentData::TheOtherSideMode(RawComponentData(data.to_vec())))
+        }
         id => {
-            return Err(failure(data,BytesDeserializeErrorKind::Component(Some(id))));
+            unexpected(error::Format(format!(
+                "unserializable component \"{:?}\"",
+                id
+            ))).map(|_| unreachable!()).boxed()
         }
-    };
-
-    let component = Component {
-        guid,
-        data: component_data,
-    };
-    Ok((input, component))
+    }
 }
 
-fn transform(input: Input<'_>) -> BytesParseResult<'_, Transform> {
-    let (input, mut position) = serialization::read_vector_3(input)?;
-    let (input, mut rotation) = serialization::read_quaternion(input)?;
-    let (input, mut scale) = serialization::read_vector_3(input)?;
+fn transform<'a>() -> impl Parser<'a, Transform> {
+    let position = vector_3().map(|mut position| {
+        if let Some(position) = &mut position {
+            let is_valid =
+                position.x.is_finite() && position.y.is_finite() && position.z.is_finite();
+            if !is_valid {
+                *position = Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                };
+            }
+        }
 
-    if let Some(position) = &mut position {
-        let is_valid = position.x.is_finite() && position.y.is_finite() && position.z.is_finite();
-        if !is_valid {
-            *position = Vector3 {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
+        position
+    });
+
+    let rotation = quaternion().map(|mut rotation| {
+        if let Some(rotation) = &mut rotation {
+            let is_valid = rotation.v.x.is_finite()
+                && rotation.v.y.is_finite()
+                && rotation.v.z.is_finite()
+                && rotation.s.is_finite();
+            if !is_valid {
+                *rotation = Quaternion::from([0.0, 0.0, 0.0, 1.0]);
+            }
+        }
+
+        rotation
+    });
+
+    let scale = vector_3().map(|mut scale| {
+        if let Some(scale) = &mut scale {
+            let is_valid = scale.x.is_finite() && scale.y.is_finite() && scale.z.is_finite();
+            if !is_valid {
+                *scale = Vector3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                };
+            } else {
+                scale.x = util::f32_max(scale.x.abs(), 1E-5);
+                scale.y = util::f32_max(scale.y.abs(), 1E-5);
+                scale.z = util::f32_max(scale.z.abs(), 1E-5);
+            }
+        }
+
+        scale
+    });
+
+    let children_scope = scope_with_scope_mark_satisfying(|x| x == 55555555);
+
+    (position, rotation, scale, children_scope).flat_map(
+        |(position, rotation, scale, (_mark, children_scope))| {
+            let num_children = le_i32().and_then(|n| {
+                usize::try_from(n)
+                    .map_err(|_| Error::unexpected_format(format!("number of children {}", n)))
+            });
+            let children = num_children
+                .then(|n| count_min_max(n, n, game_object()))
+                .easy_parse(children_scope)
+                .map(|x| x.0)?;
+
+            let transform = Transform {
+                position,
+                rotation,
+                scale,
+                children,
             };
-        }
-    }
 
-    if let Some(rotation) = &mut rotation {
-        let is_valid = rotation.v.x.is_finite()
-            && rotation.v.y.is_finite()
-            && rotation.v.z.is_finite()
-            && rotation.s.is_finite();
-        if !is_valid {
-            *rotation = Quaternion::from([0.0, 0.0, 0.0, 1.0]);
-        }
-    }
-
-    if let Some(scale) = &mut scale {
-        let is_valid = scale.x.is_finite() && scale.y.is_finite() && scale.z.is_finite();
-        if !is_valid {
-            *scale = Vector3 {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            };
-        } else {
-            scale.x = util::f32_max(scale.x.abs(), 1E-5);
-            scale.y = util::f32_max(scale.y.abs(), 1E-5);
-            scale.z = util::f32_max(scale.z.abs(), 1E-5);
-        }
-    }
-
-    let err_input = input;
-    let (input, children_scope_mark) = serialization::read_scope_mark(input)?;
-    if children_scope_mark != 55555555 {
-        return Err(failure(
-            err_input,
-            BytesDeserializeErrorKind::Component(Some(ComponentId::Transform)),
-        ));
-    }
-
-    let err_input = input;
-    let (input, children_scope_len) = le_i64(input)?;
-    let children_scope_len: usize = children_scope_len.try_into().map_err(|_| {
-        failure(
-            err_input,
-            BytesDeserializeErrorKind::Component(Some(ComponentId::Transform)),
-        )
-    })?;
-
-    let (after_children, children_scope) = take(children_scope_len)(input)?;
-
-    let err_input = input;
-    let (children_scope, num_children) = le_i32(children_scope)?;
-    let num_children: usize = num_children.try_into().map_err(|_| {
-        failure(
-            err_input,
-            BytesDeserializeErrorKind::Component(Some(ComponentId::Transform)),
-        )
-    })?;
-    let (children_scope, children) =
-        many_m_n(num_children, num_children, serialization::read_game_object)(children_scope)?;
-
-    if !children_scope.slice.is_empty() {
-        return Err(failure(
-            children_scope,
-            BytesDeserializeErrorKind::Component(Some(ComponentId::Transform)),
-        ));
-    }
-
-    let transform = Transform {
-        position,
-        rotation,
-        scale,
-        children,
-    };
-
-    Ok((after_children, transform))
+            Ok(transform)
+        },
+    )
 }
