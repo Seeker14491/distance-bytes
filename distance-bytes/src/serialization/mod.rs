@@ -1,161 +1,93 @@
-mod component;
-mod string;
+mod deserializer;
+mod serializer;
+
+pub(crate) use deserializer::Deserializer;
 
 use crate::{
-    serialization::{component::component, string::string},
+    domain::{component::Transform, Quaternion, Vector3},
     util, GameObject,
 };
-use arrayvec::ArrayVec;
-use combine::{
-    attempt,
-    error::StreamError,
-    parser::{
-        byte::num::{le_f32, le_i32, le_i64, le_u32},
-        range::{length_prefix, range},
-        repeat::count_min_max,
-    },
-    stream::PointerOffset,
-    EasyParser, Parser as _, RangeStream, Stream,
-};
-use mint::{Quaternion, Vector3};
-use std::convert::TryFrom;
+use anyhow::Error;
+use auto_impl::auto_impl;
 
-type Input<'a> = combine::easy::Stream<&'a [u8]>;
-type Error<'a> = combine::easy::Error<u8, &'a [u8]>;
+#[auto_impl(&mut)]
+trait Visitor {
+    const VISIT_DIRECTION: VisitDirection;
 
-pub(crate) fn finalize_errors(
-    initial_slice: &[u8],
-    errors: combine::easy::Errors<u8, &[u8], PointerOffset<[u8]>>,
-) -> combine::easy::Errors<u8, String, usize> {
-    let errors = errors.map_position(|pos| pos.translate_position(initial_slice));
-    errors.map_range(|range| util::format_byte_slice(range, 10))
+    fn visit_i32(&mut self, name: &str, val: &mut i32) -> Result<(), Error>;
+    fn visit_u32(&mut self, name: &str, val: &mut u32) -> Result<(), Error>;
+    fn visit_i64(&mut self, name: &str, val: &mut i64) -> Result<(), Error>;
+    fn visit_f32(&mut self, name: &str, val: &mut f32) -> Result<(), Error>;
+    fn visit_vector_3(&mut self, name: &str, val: &mut Vector3) -> Result<(), Error>;
+    fn visit_quaternion(&mut self, name: &str, val: &mut Quaternion) -> Result<(), Error>;
+
+    fn visit_children(&mut self, val: &mut Vec<GameObject>) -> Result<(), Error>;
 }
 
-// #[derive(Debug, PartialEq)]
-// pub struct BytesParseError<'a> {
-//     offset: usize,
-//     errors: Vec<combine::stream::easy::Error<u8, &'a [u8]>>,
-// }
-//
-// impl<'a> BytesParseError<'a> {
-//     pub(crate) fn new(
-//         initial_slice: &[u8],
-//         errors: combine::easy::Errors<u8, &'a [u8], PointerOffset<[u8]>>,
-//     ) -> Self {
-//         BytesParseError {
-//             offset: errors.position.translate_position(initial_slice),
-//             errors: errors.errors,
-//         }
-//     }
-// }
-//
-// impl<'a> Display for BytesParseError<'a> {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-//         write!(f, "Error at offset {}", self.offset)?;
-//         if self.errors.is_empty() {
-//             writeln!(f, ".")?;
-//         } else {
-//             writeln!(f, ":")?;
-//         }
-//
-//         for error in &self.errors {
-//             match error {
-//                 Error::Unexpected(c) => writeln!(f, "Unexpected `{}`", c)?,
-//                 Error::Expected(s) => writeln!(f, "Unexpected `{}`", s)?,
-//                 Error::Message(msg) => msg.fmt(f)?,
-//                 Error::Other(err) => err.fmt(f)?,
-//             }
-//         }
-//
-//         Ok(())
-//     }
-// }
-//
-// impl<'a> std::error::Error for BytesParseError<'a> {}
-
-pub(crate) trait Parser<'a, O>: combine::Parser<Input<'a>, Output = O> {}
-impl<'a, O, T> Parser<'a, O> for T where T: combine::Parser<Input<'a>, Output = O> {}
-
-pub(crate) fn game_object<'a>() -> impl Parser<'a, GameObject> {
-    let game_object_scope = scope_with_scope_mark_satisfying(|x| x == 66666666);
-
-    game_object_scope.flat_map(|(_scope_mark, data)| {
-        let name = string();
-        let prefab = string();
-        let guid = le_u32();
-        let num_components = le_i32().and_then(usize::try_from);
-        let components = num_components.then(|n| count_min_max(n, n, component()));
-
-        let ((name, prefab, guid, components), _input) =
-            (name, prefab, guid, components).easy_parse(data)?;
-
-        let game_object = GameObject {
-            name,
-            prefab,
-            guid,
-            components,
-        };
-
-        Ok(game_object)
-    })
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+enum VisitDirection {
+    In,
+    Out,
 }
 
-fn scope<'a>() -> impl Parser<'a, (i32, &'a [u8])> {
-    let scope_data = length_prefix(le_i64());
-
-    (scope_mark(), scope_data)
+#[auto_impl(&mut)]
+trait Serializable: Default {
+    fn accept<V: Visitor>(&mut self, visitor: V) -> Result<(), Error>;
 }
 
-fn scope_with_scope_mark_satisfying<'a>(
-    f: impl FnMut(i32) -> bool,
-) -> impl Parser<'a, (i32, &'a [u8])> {
-    let scope_data = length_prefix(le_i64());
+impl Serializable for Transform {
+    fn accept<V: Visitor>(&mut self, mut visitor: V) -> Result<(), Error> {
+        visitor.visit_vector_3("Position", &mut self.position)?;
+        visitor.visit_quaternion("Rotation", &mut self.rotation)?;
+        visitor.visit_vector_3("Scale", &mut self.scale)?;
 
-    (scope_mark_satisfying(f), scope_data)
-}
+        if V::VISIT_DIRECTION == VisitDirection::In {
+            // Position
+            {
+                let is_valid = self.position.x.is_finite()
+                    && self.position.y.is_finite()
+                    && self.position.z.is_finite();
+                if !is_valid {
+                    self.position = Vector3 {
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    };
+                }
+            }
 
-fn scope_mark<'a>() -> impl Parser<'a, i32> {
-    le_i32()
-}
+            // Rotation
+            {
+                let is_valid = self.rotation.v.x.is_finite()
+                    && self.rotation.v.y.is_finite()
+                    && self.rotation.v.z.is_finite()
+                    && self.rotation.s.is_finite();
+                if !is_valid {
+                    self.rotation = Quaternion::from([0.0, 0.0, 0.0, 1.0]);
+                }
+            }
 
-fn scope_mark_satisfying<'a>(mut f: impl FnMut(i32) -> bool) -> impl Parser<'a, i32> {
-    scope_mark().and_then(move |mark| {
-        if f(mark) {
-            Ok(mark)
-        } else {
-            Err(Error::unexpected_format(format!("scope mark {}", mark)))
+            // Scale
+            {
+                let is_valid = self.scale.x.is_finite()
+                    && self.scale.y.is_finite()
+                    && self.scale.z.is_finite();
+                if !is_valid {
+                    self.scale = Vector3 {
+                        x: 1.0,
+                        y: 1.0,
+                        z: 1.0,
+                    };
+                } else {
+                    self.scale.x = util::f32_max(self.scale.x.abs(), 1E-5);
+                    self.scale.y = util::f32_max(self.scale.y.abs(), 1E-5);
+                    self.scale.z = util::f32_max(self.scale.z.abs(), 1E-5);
+                }
+            }
         }
-    })
-}
 
-fn vector_3<'a>() -> impl Parser<'a, Option<Vector3<f32>>> {
-    let p = || {
-        count_min_max(3, 3, le_f32())
-            .map(|buf: ArrayVec<[f32; 3]>| buf.into_inner().unwrap().into())
-    };
+        visitor.visit_children(&mut self.children)?;
 
-    optional(p)
-}
-
-fn quaternion<'a>() -> impl Parser<'a, Option<Quaternion<f32>>> {
-    let p = || {
-        count_min_max(4, 4, le_f32())
-            .map(|buf: ArrayVec<[f32; 4]>| buf.into_inner().unwrap().into())
-    };
-
-    optional(p)
-}
-
-fn optional<'a, I, P>(
-    mut f: impl FnMut() -> P,
-) -> impl combine::Parser<I, Output = Option<P::Output>> + 'a
-where
-    I: Stream<Token = u8, Range = &'a [u8]> + RangeStream + 'a,
-    P: combine::Parser<I> + 'a,
-    P::Output: Clone,
-{
-    const EMPTY_MARKER: &[u8] = &0x7FFF_FFFD_i32.to_le_bytes();
-
-    let empty = range(EMPTY_MARKER).map(|_| None);
-    attempt(empty).or(f().map(Some))
+        Ok(())
+    }
 }

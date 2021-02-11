@@ -11,18 +11,17 @@ mod domain;
 mod serialization;
 mod util;
 
-pub use crate::domain::GameObject;
-use combine::EasyParser;
+pub use crate::domain::{
+    component::{Component, ComponentData, RawComponentData},
+    GameObject,
+};
 
-pub fn deserialize_game_object(
-    data: &[u8],
-) -> Result<GameObject, combine::easy::Errors<u8, String, usize>> {
-    serialization::game_object()
-        .easy_parse(data)
-        .map(|x| x.0)
-        .map_err(|e| serialization::finalize_errors(data, e))
-}
+use crate::serialization::Deserializer;
+use anyhow::Error;
+use std::io::{Read, Seek};
 
-pub fn serialize_game_object(_game_object: GameObject) -> Vec<u8> {
-    todo!()
+pub fn read_game_object(reader: impl Read + Seek) -> Result<GameObject, Error> {
+    let mut deserializer = Deserializer::new(reader);
+
+    deserializer.read_game_object()
 }

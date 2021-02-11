@@ -1,6 +1,8 @@
-use crate::GameObject;
+use crate::{
+    domain::{Quaternion, Vector3},
+    GameObject,
+};
 use enum_primitive_derive::Primitive;
-use mint::{Quaternion, Vector3};
 use serde::{Deserialize, Serialize};
 
 // TODO: Handle components that have a name string instead of id and version.
@@ -12,6 +14,7 @@ pub struct Component {
     pub data: ComponentData,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[repr(i32)]
 #[derive(
     Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Primitive, Serialize, Deserialize,
@@ -243,6 +246,7 @@ impl Default for ComponentId {
     }
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ComponentData {
     Transform(Transform),
@@ -427,197 +431,44 @@ pub enum ComponentData {
     TheOtherSideMode(RawComponentData),
 }
 
+/// Raw, binary component data as stored in the bytes format.
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct RawComponentData(pub Vec<u8>);
 
-#[derive(Debug, Clone, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Transform {
-    pub position: Option<Vector3<f32>>,
-    pub rotation: Option<Quaternion<f32>>,
-    pub scale: Option<Vector3<f32>>,
+    pub position: Vector3,
+    pub rotation: Quaternion,
+    pub scale: Vector3,
     pub children: Vec<GameObject>,
 }
 
-// Serializable components:
+impl Default for Transform {
+    fn default() -> Self {
+        Transform {
+            position: default_vector_3(),
+            rotation: default_quaternion(),
+            scale: default_vector_3(),
+            children: Vec::new(),
+        }
+    }
+}
 
-// GoldenSimples
-// BoxCollider
-// CapsuleCollider
-// LensFlare
-// Light
-// MeshRenderer
-// Projector
-// SphereCollider
-// TextMesh
-// Transform
-// ZEventListener
-// ZEventTrigger
-// MoveElectricityAlongWire
-// ParticlesGPU
-// Traffic
-// AbilitySignButtonColorLogic
-// AchievementTrigger
-// ActivationRampLogic
-// AddCameraNoise
-// Animated
-// AnimatorAudio
-// AnimatorCameraShake
-// GoldenAnimator
-// LookAtCamera
-// IgnoreInputTrigger
-// AdventureAbilitySettings
-// AdventureFinishTrigger
-// AdventureModeCompleteTrigger
-// AdventureSpecialIntro
-// AmbientAudioObject
-// InterpolateRTPCLogic
-// MusicZone
-// AudioEffectZone
-// AudioEventTrigger
-// AxisRotationLogic
-// BackAndForthSawLogic
-// Biodome
-// BiodomeAudioInterpolator
-// BlackPortalLogic
-// BlinkInTrigger
-// BrightenCarHeadlights
-// CinematicCamera
-// CinematicCameraFocalPoint
-// CutsceneManagerLogic
-// LostToEchoesIntroCutscene
-// CarSpawner
-// LightsFlickerLogic
-// CarReplayData
-// CarScreenImageTrigger
-// CarScreenTextDecodeTrigger
-// CarVoiceTrigger
-// ChallengeMode
-// CheckpointLogic
-// ColorPreset
-// CountdownTextMeshLogic
-// CreditsNameOrbLogic
-// CubeMapRenderer
-// RealtimeReflectionRenderer
-// CustomName
-// CutsceneCamera
-// CutsceneText
-// DeadCarLogic
-// DisableLocalCarWarnings
-// DiscoverableStuntArea
-// EmpireProximityDoorLogic
-// EnableAbilitiesTrigger
-// EngageBrokenPieces
-// ExcludeFromEMP
-// FadeOut
-// FinalCountdownLogic
-// Flock
-// FlyingRingLogic
-// FogSkyboxAmbientChangeTrigger
-// ForceVolume
-// FreeRoamMode
-// GPSTrigger
-// GenerateCreditsNames
-// GlitchFieldLogic
-// GravityToggle
-// HideOnVirusSpiritEvent
-// HoverScreenSpecialObjectTrigger
-// IgnoreInCullGroups
-// IndicatorDisplayLogic
-// InfiniteCooldownTrigger
-// InfoDisplayLogic
-// InterpolateToPositionOnTrigger
-// InterpolateToRotationOnTrigger
-// IntroCutsceneLightFadeIn
-// KillGridBox
-// ArenaCarSpawner
-// LevelEditorCarSpawner
-// LevelEditorPlayMode
-// LightFlickerLogic
-// LevelPlaylist
-// MusicTrigger
-// ObjectSpawnCircle
-// OnCollisionBreakApartLogic
-// ParticleEmitLogic
-// PopupBlockerLogic
-// PowerPosterLogic
-// PulseAll
-// PulseCoreLogic
-// PulseLight
-// PulseMaterial
-// PulseRotateOnTrigger
-// QuarantineTrigger
-// CoopSprintMode
-// RaceEndLogic
-// RaceStartCarSpawner
-// SprintMode
-// TrackmogrifyMode
-// RigidbodyAxisRotationLogic
-// RollingBarrelDropperLogic
-// RumbleZone
-// SetAbilitiesTrigger
-// SetActiveAfterWarp
-// SetActiveOnIntroCutsceneStarted
-// SetActiveOnMIDIEvent
-// ShardCluster
-// ShowDuringGlitch
-// SmoothRandomPosition
-// SoccerGoalLogic
-// SoccerMode
-// SpeedAndStyleMode
-// SphericalGravity
-// AdventureMode
-// DemoMode
-// LostToEchoesMode
-// MainMenuMode
-// NexusMode
-// TheOtherSideMode
-// StuntMode
-// ReverseTagMode
-// TeleporterEntrance
-// TeleporterExit
-// TeleporterExitCheckpoint
-// TriggerCooldownLogic
-// TunnelHorrorLogic
-// TurnLightOnNearCar
-// TutorialBoxText
-// VirusDropperDroneLogic
-// VirusMineLogic
-// VirusSpiritWarpTeaserLogic
-// WarpAnchor
-// VirusSpiritSpawner
-// WarningPulseLight
-// WingCorruptionZone
-// ControlScheme
-// DeviceToSchemeLinks
-// TabPopulator
-// GameData
-// LocalLeaderboard
-// Group
-// LevelImageCamera
-// LevelSettings
-// ToolInputCombos
-// LevelInfos
-// ShadowsChangedListener
-// AchievementSettings
-// AudioSettings
-// CheatSettings
-// ControlsSettings
-// GeneralSettings
-// GraphicsSettings
-// LevelEditorSettings
-// ReplaySettings
-// VRSettings
-// Profile
-// ProfileProgress
-// ProfileStats
-// WorkshopPublishedFileInfos
-// BezierSplineTrack
-// MoveAlongAttachedTrack
-// SplineSegment
-// TrackAttachment
-// TrackLink
-// TrackManipulatorNode
-// TrackSegment
-// Invalid_
-// CutsceneCamForTrailer
-// UltraPlanet
+fn default_vector_3() -> Vector3 {
+    Vector3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    }
+}
+
+fn default_quaternion() -> Quaternion {
+    Quaternion {
+        v: Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        s: 1.0,
+    }
+}
