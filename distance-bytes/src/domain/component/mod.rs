@@ -446,15 +446,19 @@ pub struct Transform {
 impl Default for Transform {
     fn default() -> Self {
         Transform {
-            position: default_vector_3(),
+            position: zero_vector_3(),
             rotation: default_quaternion(),
-            scale: default_vector_3(),
+            scale: Vector3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
             children: Vec::new(),
         }
     }
 }
 
-fn default_vector_3() -> Vector3 {
+fn zero_vector_3() -> Vector3 {
     Vector3 {
         x: 0.0,
         y: 0.0,
