@@ -21,8 +21,6 @@ use std::{
 };
 use tracing::warn;
 
-// TODO: should `read_set_*()` functions return values directly instead of through a reference?
-
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct Deserializer<R: Read + Seek> {
     reader: R,
