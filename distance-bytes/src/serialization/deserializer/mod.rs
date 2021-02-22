@@ -19,7 +19,7 @@ use std::{
     io::{Read, Seek, SeekFrom},
     mem,
 };
-use tracing::warn;
+use tracing::{debug, warn};
 
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct Deserializer<R: Read + Seek> {
@@ -65,14 +65,15 @@ impl<R: Read + Seek> Deserializer<R> {
         self.read_set_i32("numComponents", &mut num_components)?;
         let mut components = Vec::with_capacity(num_components.try_into()?);
         for _ in 0..num_components {
-            let component = self.read_component()?;
-            components.push(component);
+            if let Some(component) = self.read_component()? {
+                components.push(component);
+            }
         }
 
         Ok(components)
     }
 
-    fn read_component(&mut self) -> Result<Component, Error> {
+    fn read_component(&mut self) -> Result<Option<Component>, Error> {
         let mut component_id = ComponentId::Invalid_;
         let mut name = String::new();
         let mut component_version = 0;
@@ -108,7 +109,8 @@ impl<R: Read + Seek> Deserializer<R> {
         if component_id != ComponentId::Invalid_ {
             component_data = self.read_component_data(component_id, component_version, guid)?;
         } else {
-            todo!("VisitUnknownComponent")
+            debug!(name = name.as_str(), guid, "skipping unknown component");
+            return Ok(None);
         }
 
         let component = Component {
@@ -116,7 +118,7 @@ impl<R: Read + Seek> Deserializer<R> {
             data: component_data,
         };
 
-        Ok(component)
+        Ok(Some(component))
     }
 
     fn read_component_data(
