@@ -87,7 +87,7 @@ impl<R: Read + Seek> Deserializer<R> {
                 if let Some(id_2) = ComponentId::from_i32(raw_id) {
                     component_id = id_2;
                 } else {
-                    warn!("unknown componentID {}", raw_id);
+                    warn!(id = raw_id, "unknown componentID");
                 }
 
                 name = format!("{:?}", component_id);
@@ -98,7 +98,7 @@ impl<R: Read + Seek> Deserializer<R> {
             }
             mark => {
                 name = "Invalid".to_owned();
-                warn!("invalid component mark {}", mark);
+                warn!(mark, "invalid component mark");
             }
         }
 
@@ -441,10 +441,10 @@ impl<R: Read + Seek> Deserializer<R> {
             self.read_start_scope_helper(mark, push_in_scope_stack)?;
         } else {
             warn!(
-                "Expected mark {}({}) wasn't found, read {} instead. Stack: {:?}",
-                mark,
-                util::scope_mark_string(mark),
-                n,
+                expected_mark = mark,
+                expected_mark_name = util::scope_mark_string(mark),
+                found = n,
+                "Expected mark wasn't found. Stack: {:?}",
                 &self.scope_info_stack
             );
         }
@@ -513,10 +513,8 @@ impl<R: Read + Seek> Deserializer<R> {
 
         if log_warn {
             warn!(
-                "A scope with mark {} was {} when reading. Stack: {:?}",
-                scope_info.scope_mark_string(),
-                str_1,
-                &self.scope_info_stack
+                scope = scope_info.scope_mark_string(),
+                "A scope was {} when reading. Stack: {:?}", str_1, &self.scope_info_stack
             );
         }
 
