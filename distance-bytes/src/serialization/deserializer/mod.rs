@@ -2,7 +2,7 @@ mod string;
 
 use crate::{
     domain::{component::Component, ComponentId, Quaternion, Vector3},
-    serialization::{Serializable, VisitDirection, Visitor},
+    serialization::{Serializable, VisitDirection, Visitor, EMPTY_MARK},
     util, ComponentData, GameObject, RawComponentData,
 };
 use anyhow::{bail, Error};
@@ -372,8 +372,7 @@ impl<R: Read + Seek> Deserializer<R> {
     }
 
     fn empty_marker(&mut self) -> Result<bool, Error> {
-        const EMPTY_MARKER: i32 = 0x7FFF_FFFD;
-        const MARKER_SIZE: usize = mem::size_of::<i32>();
+        const MARK_SIZE: usize = mem::size_of::<i32>();
 
         let mut buf = [0_u8; 4];
         if let Err(e) = self.reader.read_exact(&mut buf) {
@@ -385,10 +384,10 @@ impl<R: Read + Seek> Deserializer<R> {
         }
 
         let n = i32::from_le_bytes(buf);
-        if n == EMPTY_MARKER {
+        if n == EMPTY_MARK {
             Ok(true)
         } else {
-            self.reader.seek(SeekFrom::Current(-(MARKER_SIZE as i64)))?;
+            self.reader.seek(SeekFrom::Current(-(MARK_SIZE as i64)))?;
             Ok(false)
         }
     }

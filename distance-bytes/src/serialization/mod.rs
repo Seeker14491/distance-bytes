@@ -10,6 +10,22 @@ use crate::{
 use anyhow::Error;
 use auto_impl::auto_impl;
 
+pub(crate) const INVALID_INT: i32 = -127;
+pub(crate) const INVALID_FLOAT: f32 = -10_000.0;
+
+pub(crate) const INVALID_VECTOR_3: Vector3 = Vector3 {
+    x: INVALID_FLOAT,
+    y: INVALID_FLOAT,
+    z: INVALID_FLOAT,
+};
+
+pub(crate) const INVALID_QUATERNION: Quaternion = Quaternion {
+    v: INVALID_VECTOR_3,
+    s: INVALID_FLOAT,
+};
+
+pub(crate) const EMPTY_MARK: i32 = 0x7FFF_FFFD;
+
 #[auto_impl(&mut)]
 trait Visitor {
     const VISIT_DIRECTION: VisitDirection;

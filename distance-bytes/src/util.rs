@@ -58,7 +58,7 @@ pub(crate) fn scope_mark_string(scope_mark: i32) -> &'static str {
         66666666 => "GameObject",
         88888888 => "LevelSettings",
         99999999 => "Level",
-        0x7FFF_FFFD => "Empty",
+        n if n == EMPTY_MARK => "Empty",
         _ => "INVALID",
     }
 }
