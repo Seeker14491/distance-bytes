@@ -4,6 +4,10 @@ version = "0.0.1"
 authors = ["Brian Bowman <seeker14491@gmail.com>"]
 edition = "2018"
 
+[dev-dependencies]
+insta = "1"
+pretty-hex = "0.2"
+
 [dependencies]
 anyhow = "1"
 auto_impl = "0.4"

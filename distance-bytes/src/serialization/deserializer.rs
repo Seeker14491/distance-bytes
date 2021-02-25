@@ -10,7 +10,7 @@ use paste::paste;
 use std::{
     borrow::Cow,
     cmp::Ordering,
-    convert::TryInto,
+    convert::{TryFrom, TryInto},
     fmt,
     fmt::{Display, Formatter},
     io,
@@ -401,7 +401,7 @@ impl<R: Read + Seek> Deserializer<R> {
 
     fn is_empty_scope(&mut self) -> Result<bool, Error> {
         if let Some(scope_info) = self.scope_info_stack.last() {
-            Ok(self.reader.stream_position()? == scope_info.end_pos.try_into()?)
+            Ok(self.reader.stream_position()? == u64::try_from(scope_info.end_pos)?)
         } else {
             warn!("ScopeInfo stack was empty when accessed");
 

@@ -11,6 +11,9 @@ mod domain;
 mod serialization;
 mod util;
 
+#[cfg(test)]
+mod test_util;
+
 pub use crate::domain::{
     component::{Component, ComponentData, RawComponentData},
     GameObject,

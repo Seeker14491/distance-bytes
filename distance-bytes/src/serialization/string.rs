@@ -59,3 +59,37 @@ pub(crate) fn write(mut writer: impl Write, s: &str) -> Result<(), Error> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_util::hex_dump;
+    use std::io::{Cursor, Seek, SeekFrom};
+    use insta::assert_snapshot;
+
+    #[test]
+    fn test_write() {
+        let s = "Nitronic";
+        let mut buf = Cursor::new(Vec::new());
+
+        write(&mut buf, s).unwrap();
+
+        assert_snapshot!(hex_dump(buf.get_ref()), @r###"
+        Length: 17 (0x11) bytes
+        0000:   10 4e 00 69  00 74 00 72  00 6f 00 6e  00 69 00 63   .N.i.t.r.o.n.i.c
+        0010:   00                                                   .
+        "###);
+    }
+
+    #[test]
+    fn test_writing_then_reading_yields_original() {
+        let original = "Rush";
+
+        let mut buf = Cursor::new(Vec::new());
+        write(&mut buf, original).unwrap();
+
+        buf.seek(SeekFrom::Start(0)).unwrap();
+        let deserialized = read(&mut buf).unwrap();
+        assert_eq!(original, &deserialized);
+    }
+}
