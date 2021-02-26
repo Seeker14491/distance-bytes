@@ -1,3 +1,7 @@
+use crate::{
+    domain::{Quaternion, Vector3},
+    serialization::EMPTY_MARK,
+};
 use std::{
     fmt::Write,
     io,
@@ -10,6 +14,22 @@ pub(crate) fn f32_max(a: f32, b: f32) -> f32 {
     } else {
         b
     }
+}
+
+// Implementation of Unity's `Mathf.Approximately()` function
+pub(crate) fn f32_approx_equal(a: f32, b: f32) -> bool {
+    f32::abs(b - a) < f32_max(1E-6 * f32_max(a.abs(), b.abs()), f32::EPSILON * 8.0)
+}
+
+pub(crate) fn vector3_approx_equals(a: Vector3, b: Vector3) -> bool {
+    f32_approx_equal(a.x, b.x) && f32_approx_equal(a.y, b.y) && f32_approx_equal(a.z, b.z)
+}
+
+pub(crate) fn quaternion_approx_equals(a: Quaternion, b: Quaternion) -> bool {
+    f32_approx_equal(a.v.x, b.v.x)
+        && f32_approx_equal(a.v.y, b.v.y)
+        && f32_approx_equal(a.v.z, b.v.z)
+        && f32_approx_equal(a.s, b.s)
 }
 
 pub(crate) fn format_byte_slice(slice: &[u8], max_bytes_to_print: usize) -> String {

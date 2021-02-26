@@ -1,8 +1,6 @@
-mod string;
-
 use crate::{
     domain::{component::Component, ComponentId, Quaternion, Vector3},
-    serialization::{Serializable, VisitDirection, Visitor, EMPTY_MARK},
+    serialization::{string, Serializable, VisitDirection, Visitor, EMPTY_MARK},
     util, ComponentData, GameObject, RawComponentData,
 };
 use anyhow::{bail, Error};
@@ -105,47 +103,48 @@ impl<R: Read + Seek> Deserializer<R> {
         self.read_set_u32("component GUID", &mut guid)?;
         self.set_current_scope_name(format!("Comp:{}", name));
 
-        let component_data;
         if component_id != ComponentId::Invalid_ {
-            component_data = self.read_component_data(component_id, component_version, guid)?;
+            let component = self.read_component_helper(component_id, component_version, guid)?;
+            Ok(Some(component))
         } else {
             debug!(name = name.as_str(), guid, "skipping unknown component");
-            return Ok(None);
+            Ok(None)
         }
-
-        let component = Component {
-            guid,
-            data: component_data,
-        };
-
-        Ok(Some(component))
     }
 
-    fn read_component_data(
+    fn read_component_helper(
         &mut self,
         component_id: ComponentId,
-        _version: i32,
-        _guid: u32,
-    ) -> Result<ComponentData, Error> {
+        version: i32,
+        guid: u32,
+    ) -> Result<Component, Error> {
         fn implemented_component<C: Serializable>(
             visitor: impl Visitor,
             f: fn(C) -> ComponentData,
             default_component: bool,
-        ) -> Result<ComponentData, Error> {
-            let mut component = C::default();
+            version: i32,
+            guid: u32,
+        ) -> Result<Component, Error> {
+            let mut inner_component = C::default();
             if !default_component {
-                component.accept(visitor)?;
+                inner_component.accept(visitor, version)?;
             }
+            let component_data = f(inner_component);
+            let component = Component {
+                version: C::VERSION,
+                guid,
+                data: component_data,
+            };
 
-            Ok(f(component))
+            Ok(component)
         }
 
         let is_default_component = self.is_empty_scope()?;
 
         let mut unimplemented_component =
-            |f: fn(RawComponentData) -> ComponentData| -> Result<ComponentData, Error> {
-                if is_default_component {
-                    Ok(f(RawComponentData::default()))
+            |f: fn(RawComponentData) -> ComponentData| -> Result<Component, Error> {
+                let component_data = if is_default_component {
+                    f(RawComponentData::default())
                 } else {
                     let current_pos: usize = self.reader.stream_position()?.try_into()?;
                     let data_len = self
@@ -157,14 +156,22 @@ impl<R: Read + Seek> Deserializer<R> {
                     let mut data = vec![0; data_len];
                     self.reader.read_exact(&mut data)?;
 
-                    Ok(f(RawComponentData(data)))
-                }
+                    f(RawComponentData(data))
+                };
+
+                let component = Component {
+                    version,
+                    guid,
+                    data: component_data,
+                };
+
+                Ok(component)
             };
 
         #[rustfmt::skip]
-        let component_data = match component_id {
+        let component = match component_id {
             ComponentId::Transform => {
-                implemented_component(self, ComponentData::Transform, is_default_component)?
+                implemented_component(self, ComponentData::Transform, is_default_component, version, guid)?
             }
             ComponentId::MeshRenderer => unimplemented_component(ComponentData::MeshRenderer)?,
             ComponentId::TextMesh => unimplemented_component(ComponentData::TextMesh)?,
@@ -348,7 +355,7 @@ impl<R: Read + Seek> Deserializer<R> {
             _ => bail!("unserializable component `{:?}` encountered", component_id),
         };
 
-        Ok(component_data)
+        Ok(component)
     }
 
     fn check_and_adjust_for_scope_bounds<NextElement>(&mut self) -> Result<bool, Error> {

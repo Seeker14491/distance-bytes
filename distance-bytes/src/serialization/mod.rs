@@ -1,7 +1,9 @@
 mod deserializer;
 mod serializer;
+mod string;
 
 pub(crate) use deserializer::Deserializer;
+pub(crate) use serializer::Serializer;
 
 use crate::{
     domain::{component::Transform, Quaternion, Vector3},
@@ -48,11 +50,15 @@ enum VisitDirection {
 
 #[auto_impl(&mut)]
 trait Serializable: Default {
-    fn accept<V: Visitor>(&mut self, visitor: V) -> Result<(), Error>;
+    const VERSION: i32;
+
+    fn accept<V: Visitor>(&mut self, visitor: V, version: i32) -> Result<(), Error>;
 }
 
 impl Serializable for Transform {
-    fn accept<V: Visitor>(&mut self, mut visitor: V) -> Result<(), Error> {
+    const VERSION: i32 = 0;
+
+    fn accept<V: Visitor>(&mut self, mut visitor: V, _version: i32) -> Result<(), Error> {
         visitor.visit_vector_3("Position", &mut self.position)?;
         visitor.visit_quaternion("Rotation", &mut self.rotation)?;
         visitor.visit_vector_3("Scale", &mut self.scale)?;
