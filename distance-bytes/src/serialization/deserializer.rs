@@ -269,7 +269,9 @@ impl<R: Read + Seek> Deserializer<R> {
             ComponentId::LevelImageCamera => unimplemented_component(ComponentData::LevelImageCamera)?,
             ComponentId::ParticlesGPU => unimplemented_component(ComponentData::ParticlesGPU)?,
             ComponentId::KillGridBox => unimplemented_component(ComponentData::KillGridBox)?,
-            ComponentId::GoldenSimples => unimplemented_component(ComponentData::GoldenSimples)?,
+            ComponentId::GoldenSimples => {
+                implemented_component(self, ComponentData::GoldenSimples, is_default_component, version, guid)?
+            }
             ComponentId::SetActiveAfterWarp => unimplemented_component(ComponentData::SetActiveAfterWarp)?,
             ComponentId::AmbientAudioObject => unimplemented_component(ComponentData::AmbientAudioObject)?,
             ComponentId::BiodomeAudioInterpolator => unimplemented_component(ComponentData::BiodomeAudioInterpolator)?,
@@ -534,10 +536,28 @@ impl<R: Read + Seek> Deserializer<R> {
             scope_info.name = name.into();
         }
     }
+
+    fn read_set_u8(&mut self, _name: &str, val: &mut u8) -> Result<(), Error> {
+        if self.check_and_adjust_for_scope_bounds::<u8>()? {
+            *val = self.reader.read_u8()?;
+        }
+
+        Ok(())
+    }
 }
 
 impl<R: Read + Seek> Visitor for Deserializer<R> {
     const VISIT_DIRECTION: VisitDirection = VisitDirection::In;
+
+    fn visit_bool(&mut self, name: &str, val: &mut bool) -> Result<(), Error> {
+        if !self.empty_marker()? {
+            let mut n = *val as u8;
+            self.read_set_u8(name, &mut n)?;
+            *val = n != 0;
+        }
+
+        Ok(())
+    }
 
     fn visit_i32(&mut self, name: &str, val: &mut i32) -> Result<(), Error> {
         if !self.empty_marker()? {

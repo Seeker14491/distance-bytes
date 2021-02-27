@@ -1,5 +1,8 @@
 use crate::{
-    domain::{component::Transform, Quaternion, Vector3},
+    domain::{
+        component::{GoldenSimples, Transform},
+        Quaternion, Vector3,
+    },
     serialization::{
         string, Serializable, VisitDirection, Visitor, EMPTY_MARK, INVALID_FLOAT, INVALID_INT,
         INVALID_QUATERNION, INVALID_VECTOR_3,
@@ -163,7 +166,7 @@ impl<W: Write + Seek> Serializer<W> {
             ComponentData::LevelImageCamera(x) => unimplemented_component(x)?,
             ComponentData::ParticlesGPU(x) => unimplemented_component(x)?,
             ComponentData::KillGridBox(x) => unimplemented_component(x)?,
-            ComponentData::GoldenSimples(x) => unimplemented_component(x)?,
+            ComponentData::GoldenSimples(x) => x.accept(self, GoldenSimples::VERSION)?,
             ComponentData::SetActiveAfterWarp(x) => unimplemented_component(x)?,
             ComponentData::AmbientAudioObject(x) => unimplemented_component(x)?,
             ComponentData::BiodomeAudioInterpolator(x) => unimplemented_component(x)?,
@@ -307,6 +310,12 @@ impl<W: Write + Seek> Serializer<W> {
 
 impl<W: Write + Seek> Visitor for Serializer<W> {
     const VISIT_DIRECTION: VisitDirection = VisitDirection::Out;
+
+    fn visit_bool(&mut self, _name: &str, val: &mut bool) -> Result<(), Error> {
+        self.writer.write_u8(*val as u8)?;
+
+        Ok(())
+    }
 
     fn visit_i32(&mut self, _name: &str, val: &mut i32) -> Result<(), Error> {
         if *val != INVALID_INT {
