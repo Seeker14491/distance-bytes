@@ -1,39 +1,39 @@
-use crate::{
-    domain::{component::Component, ComponentId, Quaternion, Vector3},
-    serialization::{string, Serializable, VisitDirection, Visitor, EMPTY_MARK},
-    util, ComponentData, GameObject, RawComponentData,
+use crate::internal::component::{Component, ComponentData, RawComponentData};
+use crate::internal::{
+    string, util, ComponentId, GameObject, Quaternion, Serializable, Vector3, VisitDirection,
+    Visitor, EMPTY_MARK,
 };
 use anyhow::{bail, Error};
 use byteorder::{ReadBytesExt, LE};
 use num_traits::FromPrimitive;
 use paste::paste;
-use std::{
-    borrow::Cow,
-    cmp::Ordering,
-    convert::{TryFrom, TryInto},
-    fmt,
-    fmt::{Display, Formatter},
-    io,
-    io::{Read, Seek, SeekFrom},
-    mem,
-};
+use std::borrow::Cow;
+use std::cmp::Ordering;
+use std::convert::{TryFrom, TryInto};
+use std::fmt::{Display, Formatter};
+use std::io::{Read, Seek, SeekFrom};
+use std::{fmt, io, mem};
 use tracing::{debug, warn};
 
+pub fn read_game_object(reader: impl Read + Seek) -> Result<GameObject, Error> {
+    Deserializer::new(reader).read_game_object()
+}
+
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) struct Deserializer<R: Read + Seek> {
+struct Deserializer<R: Read + Seek> {
     reader: R,
     scope_info_stack: Vec<ScopeInfo>,
 }
 
 impl<R: Read + Seek> Deserializer<R> {
-    pub fn new(reader: R) -> Self {
+    fn new(reader: R) -> Self {
         Deserializer {
             reader,
             scope_info_stack: Vec::new(),
         }
     }
 
-    pub fn read_game_object(&mut self) -> Result<GameObject, Error> {
+    fn read_game_object(&mut self) -> Result<GameObject, Error> {
         let (prefab_name, guid) = self.read_game_object_start(true)?;
         let components = self.read_game_object_contents(guid)?;
 
@@ -56,6 +56,7 @@ impl<R: Read + Seek> Deserializer<R> {
     }
 
     // TODO: Check if necessary, and if so, implement and call this function from the proper places.
+    #[allow(dead_code)]
     fn add_object_to_references(&mut self, _guid: u32) {}
 
     fn read_components(&mut self) -> Result<Vec<Component>, Error> {
@@ -486,24 +487,6 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(())
     }
 
-    fn read_end_scope_with_mark(&mut self, mark: i32, log_warn: bool) -> Result<(), Error> {
-        let mut scope_info = None;
-        while let Some(info) = self.scope_info_stack.pop() {
-            if info.scope_mark == mark {
-                scope_info = Some(info);
-                break;
-            }
-        }
-
-        if let Some(info) = scope_info {
-            self.read_end_scope_helper(&info, log_warn)?;
-        } else {
-            warn!("ScopeInfo stack was empty when accessed");
-        }
-
-        Ok(())
-    }
-
     fn read_end_scope_helper(
         &mut self,
         scope_info: &ScopeInfo,
@@ -549,77 +532,77 @@ impl<R: Read + Seek> Deserializer<R> {
 impl<R: Read + Seek> Visitor for Deserializer<R> {
     const VISIT_DIRECTION: VisitDirection = VisitDirection::In;
 
-    fn visit_bool(&mut self, name: &str, val: &mut bool) -> Result<(), Error> {
+    fn visit_bool(&mut self, name: &str, value: &mut bool) -> Result<(), Error> {
         if !self.empty_marker()? {
-            let mut n = *val as u8;
+            let mut n = *value as u8;
             self.read_set_u8(name, &mut n)?;
-            *val = n != 0;
+            *value = n != 0;
         }
 
         Ok(())
     }
 
-    fn visit_i32(&mut self, name: &str, val: &mut i32) -> Result<(), Error> {
+    fn visit_i32(&mut self, name: &str, value: &mut i32) -> Result<(), Error> {
         if !self.empty_marker()? {
-            self.read_set_i32(name, val)?;
+            self.read_set_i32(name, value)?;
         }
 
         Ok(())
     }
 
-    fn visit_u32(&mut self, name: &str, val: &mut u32) -> Result<(), Error> {
+    fn visit_u32(&mut self, name: &str, value: &mut u32) -> Result<(), Error> {
         if !self.empty_marker()? {
-            self.read_set_u32(name, val)?;
+            self.read_set_u32(name, value)?;
         }
 
         Ok(())
     }
 
-    fn visit_i64(&mut self, name: &str, val: &mut i64) -> Result<(), Error> {
+    fn visit_i64(&mut self, name: &str, value: &mut i64) -> Result<(), Error> {
         if !self.empty_marker()? {
-            self.read_set_i64(name, val)?;
+            self.read_set_i64(name, value)?;
         }
 
         Ok(())
     }
 
-    fn visit_f32(&mut self, name: &str, val: &mut f32) -> Result<(), Error> {
+    fn visit_f32(&mut self, name: &str, value: &mut f32) -> Result<(), Error> {
         if !self.empty_marker()? {
-            self.read_set_f32(name, val)?;
+            self.read_set_f32(name, value)?;
         }
 
         Ok(())
     }
 
-    fn visit_vector_3(&mut self, _name: &str, val: &mut Vector3) -> Result<(), Error> {
+    fn visit_vector_3(&mut self, _name: &str, value: &mut Vector3) -> Result<(), Error> {
         if !self.empty_marker()? {
-            self.read_set_f32("x", &mut val.x)?;
-            self.read_set_f32("y", &mut val.y)?;
-            self.read_set_f32("z", &mut val.z)?;
+            self.read_set_f32("x", &mut value.x)?;
+            self.read_set_f32("y", &mut value.y)?;
+            self.read_set_f32("z", &mut value.z)?;
         }
 
         Ok(())
     }
 
-    fn visit_quaternion(&mut self, _name: &str, val: &mut Quaternion) -> Result<(), Error> {
+    fn visit_quaternion(&mut self, _name: &str, value: &mut Quaternion) -> Result<(), Error> {
         if !self.empty_marker()? {
-            self.read_set_f32("x", &mut val.v.x)?;
-            self.read_set_f32("y", &mut val.v.y)?;
-            self.read_set_f32("z", &mut val.v.z)?;
-            self.read_set_f32("w", &mut val.s)?;
+            self.read_set_f32("x", &mut value.v.x)?;
+            self.read_set_f32("y", &mut value.v.y)?;
+            self.read_set_f32("z", &mut value.v.z)?;
+            self.read_set_f32("w", &mut value.s)?;
         }
 
         Ok(())
     }
 
-    fn visit_children(&mut self, val: &mut Vec<GameObject>) -> Result<(), Error> {
+    fn visit_children(&mut self, value: &mut Vec<GameObject>) -> Result<(), Error> {
         self.read_start_scope_with_mark(55555555, true)?;
         let mut num_children = 0;
         self.read_set_i32("numberOfChildren", &mut num_children)?;
         self.set_current_scope_name(format!("ChildNum:{}", num_children));
         for _ in 0..num_children {
             let child = self.read_game_object()?;
-            val.push(child);
+            value.push(child);
         }
 
         Ok(())

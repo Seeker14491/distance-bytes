@@ -1,20 +1,20 @@
-use crate::{
-    domain::{
-        component::{GoldenSimples, Transform},
-        Quaternion, Vector3,
-    },
-    serialization::{
-        string, Serializable, VisitDirection, Visitor, EMPTY_MARK, INVALID_FLOAT, INVALID_INT,
-        INVALID_QUATERNION, INVALID_VECTOR_3,
-    },
-    util, Component, ComponentData, GameObject, RawComponentData,
+use crate::internal::component::{ComponentData, GoldenSimples, RawComponentData, Transform};
+use crate::internal::{
+    string, util, Component, GameObject, Quaternion, Serializable, Vector3, VisitDirection,
+    Visitor, EMPTY_MARK, INVALID_FLOAT, INVALID_INT, INVALID_QUATERNION, INVALID_VECTOR_3,
 };
 use anyhow::Error;
 use byteorder::{WriteBytesExt, LE};
-use std::{
-    convert::TryInto,
-    io::{Seek, SeekFrom, Write},
-};
+use std::convert::TryInto;
+use std::io::{Seek, SeekFrom, Write};
+use util::ApproximatelyEquals;
+
+pub fn write_game_object(
+    writer: impl Write + Seek,
+    game_object: &mut GameObject,
+) -> Result<(), Error> {
+    Serializer::new(writer).write_game_object(game_object)
+}
 
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct Serializer<W: Write + Seek> {
@@ -23,14 +23,14 @@ pub(crate) struct Serializer<W: Write + Seek> {
 }
 
 impl<W: Write + Seek> Serializer<W> {
-    pub fn new(writer: W) -> Self {
+    fn new(writer: W) -> Self {
         Serializer {
             writer,
             scope_stack: Vec::new(),
         }
     }
 
-    pub fn write_game_object(&mut self, game_object: &mut GameObject) -> Result<(), Error> {
+    fn write_game_object(&mut self, game_object: &mut GameObject) -> Result<(), Error> {
         self.write_start_scope(66666666)?;
         self.write_string(&game_object.name)?;
         self.write_string("")?;
@@ -311,15 +311,15 @@ impl<W: Write + Seek> Serializer<W> {
 impl<W: Write + Seek> Visitor for Serializer<W> {
     const VISIT_DIRECTION: VisitDirection = VisitDirection::Out;
 
-    fn visit_bool(&mut self, _name: &str, val: &mut bool) -> Result<(), Error> {
-        self.writer.write_u8(*val as u8)?;
+    fn visit_bool(&mut self, _name: &str, value: &mut bool) -> Result<(), Error> {
+        self.writer.write_u8(*value as u8)?;
 
         Ok(())
     }
 
-    fn visit_i32(&mut self, _name: &str, val: &mut i32) -> Result<(), Error> {
-        if *val != INVALID_INT {
-            self.writer.write_i32::<LE>(*val)?;
+    fn visit_i32(&mut self, _name: &str, value: &mut i32) -> Result<(), Error> {
+        if *value != INVALID_INT {
+            self.writer.write_i32::<LE>(*value)?;
         } else {
             self.write_empty()?;
         }
@@ -327,9 +327,9 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         Ok(())
     }
 
-    fn visit_u32(&mut self, _name: &str, val: &mut u32) -> Result<(), Error> {
-        if *val != 0xFFFF_FF81 {
-            self.writer.write_u32::<LE>(*val)?;
+    fn visit_u32(&mut self, _name: &str, value: &mut u32) -> Result<(), Error> {
+        if *value != 0xFFFF_FF81 {
+            self.writer.write_u32::<LE>(*value)?;
         } else {
             self.write_empty()?;
         }
@@ -337,9 +337,9 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         Ok(())
     }
 
-    fn visit_i64(&mut self, _name: &str, val: &mut i64) -> Result<(), Error> {
-        if *val != INVALID_INT as i64 {
-            self.writer.write_i64::<LE>(*val)?;
+    fn visit_i64(&mut self, _name: &str, value: &mut i64) -> Result<(), Error> {
+        if *value != INVALID_INT as i64 {
+            self.writer.write_i64::<LE>(*value)?;
         } else {
             self.write_empty()?;
         }
@@ -347,9 +347,9 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         Ok(())
     }
 
-    fn visit_f32(&mut self, _name: &str, val: &mut f32) -> Result<(), Error> {
-        if !util::f32_approx_equal(*val, INVALID_FLOAT) {
-            self.writer.write_f32::<LE>(*val)?;
+    fn visit_f32(&mut self, _name: &str, value: &mut f32) -> Result<(), Error> {
+        if !value.approximately_equals(&INVALID_FLOAT) {
+            self.writer.write_f32::<LE>(*value)?;
         } else {
             self.write_empty()?;
         }
@@ -357,11 +357,11 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         Ok(())
     }
 
-    fn visit_vector_3(&mut self, _name: &str, val: &mut Vector3) -> Result<(), Error> {
-        if !util::vector3_approx_equals(*val, INVALID_VECTOR_3) {
-            self.writer.write_f32::<LE>(val.x)?;
-            self.writer.write_f32::<LE>(val.y)?;
-            self.writer.write_f32::<LE>(val.z)?;
+    fn visit_vector_3(&mut self, _name: &str, value: &mut Vector3) -> Result<(), Error> {
+        if !value.approximately_equals(&INVALID_VECTOR_3) {
+            self.writer.write_f32::<LE>(value.x)?;
+            self.writer.write_f32::<LE>(value.y)?;
+            self.writer.write_f32::<LE>(value.z)?;
         } else {
             self.write_empty()?;
         }
@@ -369,12 +369,12 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         Ok(())
     }
 
-    fn visit_quaternion(&mut self, _name: &str, val: &mut Quaternion) -> Result<(), Error> {
-        if !util::quaternion_approx_equals(*val, INVALID_QUATERNION) {
-            self.writer.write_f32::<LE>(val.v.x)?;
-            self.writer.write_f32::<LE>(val.v.y)?;
-            self.writer.write_f32::<LE>(val.v.z)?;
-            self.writer.write_f32::<LE>(val.s)?;
+    fn visit_quaternion(&mut self, _name: &str, value: &mut Quaternion) -> Result<(), Error> {
+        if !value.approximately_equals(&INVALID_QUATERNION) {
+            self.writer.write_f32::<LE>(value.v.x)?;
+            self.writer.write_f32::<LE>(value.v.y)?;
+            self.writer.write_f32::<LE>(value.v.z)?;
+            self.writer.write_f32::<LE>(value.s)?;
         } else {
             self.write_empty()?;
         }
@@ -382,13 +382,13 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         Ok(())
     }
 
-    fn visit_children(&mut self, val: &mut Vec<GameObject>) -> Result<(), Error> {
+    fn visit_children(&mut self, value: &mut Vec<GameObject>) -> Result<(), Error> {
         self.write_start_scope(55555555)?;
 
-        let num_children: i32 = val.len().try_into()?;
+        let num_children: i32 = value.len().try_into()?;
         self.writer.write_i32::<LE>(num_children)?;
 
-        for game_object in val {
+        for game_object in value {
             self.write_game_object(game_object)?;
         }
 

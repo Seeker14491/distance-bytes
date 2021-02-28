@@ -63,7 +63,7 @@ pub(crate) fn write(mut writer: impl Write, s: &str) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_util::hex_dump;
+    use crate::internal::test_util::hex_dump;
     use insta::assert_snapshot;
     use std::io::{Cursor, Seek, SeekFrom};
 
