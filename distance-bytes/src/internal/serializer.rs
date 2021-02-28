@@ -176,6 +176,19 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         Ok(())
     }
 
+    fn visit_string(&mut self, _name: &str, value: &mut Option<String>) -> Result<(), Error> {
+        match value {
+            Some(s) => {
+                self.write_string(s)?;
+            }
+            None => {
+                self.write_empty()?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn visit_vector_3(&mut self, _name: &str, value: &mut Vector3) -> Result<(), Error> {
         if !value.approximately_equals(&INVALID_VECTOR_3) {
             self.writer.write_f32::<LE>(value.x)?;

@@ -101,6 +101,7 @@ pub(crate) trait Visitor {
     fn visit_u32(&mut self, name: &str, value: &mut u32) -> Result<(), Error>;
     fn visit_i64(&mut self, name: &str, value: &mut i64) -> Result<(), Error>;
     fn visit_f32(&mut self, name: &str, value: &mut f32) -> Result<(), Error>;
+    fn visit_string(&mut self, name: &str, value: &mut Option<String>) -> Result<(), Error>;
     fn visit_vector_3(&mut self, name: &str, value: &mut Vector3) -> Result<(), Error>;
     fn visit_quaternion(&mut self, name: &str, value: &mut Quaternion) -> Result<(), Error>;
 

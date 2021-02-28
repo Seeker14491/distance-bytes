@@ -1,5 +1,6 @@
-pub use crate::internal::component::golden_simples::{GoldenSimples, GoldenSimplesPresets};
-pub use crate::internal::component::transform::Transform;
+pub use custom_name::CustomName;
+pub use golden_simples::{GoldenSimples, GoldenSimplesPresets};
+pub use transform::Transform;
 
 use crate::internal::Serializable;
 use anyhow::{anyhow, Error};
@@ -8,6 +9,7 @@ use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::any::TypeId;
 
+mod custom_name;
 mod golden_simples;
 mod transform;
 
@@ -135,7 +137,7 @@ impl Component {
             ComponentId::GlobalFogLogic => unserializable(),
             ComponentId::CreditsNameOrbLogic => builder.raw(ComponentData::CreditsNameOrbLogic),
             ComponentId::DisableLocalCarWarnings => builder.raw(ComponentData::DisableLocalCarWarnings),
-            ComponentId::CustomName => builder.raw(ComponentData::CustomName),
+            ComponentId::CustomName => builder.implemented(ComponentData::CustomName, CustomName::VERSION),
             ComponentId::SplineSegment => builder.raw(ComponentData::SplineSegment),
             ComponentId::WarningPulseLight => builder.raw(ComponentData::WarningPulseLight),
             ComponentId::RumbleZone => builder.raw(ComponentData::RumbleZone),
@@ -799,7 +801,7 @@ pub enum ComponentData {
     SphericalGravity(RawComponentData),
     CreditsNameOrbLogic(RawComponentData),
     DisableLocalCarWarnings(RawComponentData),
-    CustomName(RawComponentData),
+    CustomName(CustomName),
     SplineSegment(RawComponentData),
     WarningPulseLight(RawComponentData),
     RumbleZone(RawComponentData),
@@ -1174,7 +1176,7 @@ impl ComponentData {
             ComponentData::SphericalGravity(data) => dispatcher.raw(data),
             ComponentData::CreditsNameOrbLogic(data) => dispatcher.raw(data),
             ComponentData::DisableLocalCarWarnings(data) => dispatcher.raw(data),
-            ComponentData::CustomName(data) => dispatcher.raw(data),
+            ComponentData::CustomName(data) => dispatcher.implemented(data),
             ComponentData::SplineSegment(data) => dispatcher.raw(data),
             ComponentData::WarningPulseLight(data) => dispatcher.raw(data),
             ComponentData::RumbleZone(data) => dispatcher.raw(data),

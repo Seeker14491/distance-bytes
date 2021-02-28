@@ -343,6 +343,16 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
+    fn visit_string(&mut self, name: &str, value: &mut Option<String>) -> Result<(), Error> {
+        if !self.empty_marker()? {
+            let mut s = String::new();
+            self.read_set_string(name, &mut s)?;
+            *value = Some(s);
+        }
+
+        Ok(())
+    }
+
     fn visit_vector_3(&mut self, _name: &str, value: &mut Vector3) -> Result<(), Error> {
         if !self.empty_marker()? {
             self.read_set_f32("x", &mut value.x)?;
