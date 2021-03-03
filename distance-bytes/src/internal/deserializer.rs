@@ -1,9 +1,9 @@
-use crate::internal::component::{Component, ComponentData, RawComponentData};
+use crate::internal::component::{Component, ComponentBuilder, ComponentData, RawComponentData};
 use crate::internal::{
     string, util, ComponentId, GameObject, Quaternion, Serializable, Vector3, VisitDirection,
     Visitor, EMPTY_MARK,
 };
-use anyhow::{bail, Error};
+use anyhow::Error;
 use byteorder::{ReadBytesExt, LE};
 use num_traits::FromPrimitive;
 use paste::paste;
@@ -119,245 +119,14 @@ impl<R: Read + Seek> Deserializer<R> {
         version: i32,
         guid: u32,
     ) -> Result<Component, Error> {
-        fn implemented_component<C: Serializable>(
-            visitor: impl Visitor,
-            f: fn(C) -> ComponentData,
-            default_component: bool,
-            version: i32,
-            guid: u32,
-        ) -> Result<Component, Error> {
-            let mut inner_component = C::default();
-            if !default_component {
-                inner_component.accept(visitor, version)?;
-            }
-            let component_data = f(inner_component);
-            let component = Component {
-                version: C::VERSION,
-                guid,
-                data: component_data,
-            };
-
-            Ok(component)
-        }
-
         let is_default_component = self.is_empty_scope()?;
-
-        let mut unimplemented_component =
-            |f: fn(RawComponentData) -> ComponentData| -> Result<Component, Error> {
-                let component_data = if is_default_component {
-                    f(RawComponentData::default())
-                } else {
-                    let current_pos: usize = self.reader.stream_position()?.try_into()?;
-                    let data_len = self
-                        .scope_info_stack
-                        .last()
-                        .map(|scope_info| scope_info.end_pos - current_pos)
-                        .unwrap_or(0);
-
-                    let mut data = vec![0; data_len];
-                    self.reader.read_exact(&mut data)?;
-
-                    f(RawComponentData(data))
-                };
-
-                let component = Component {
-                    version,
-                    guid,
-                    data: component_data,
-                };
-
-                Ok(component)
-            };
-
-        #[rustfmt::skip]
-        let component = match component_id {
-            ComponentId::Transform => {
-                implemented_component(self, ComponentData::Transform, is_default_component, version, guid)?
-            }
-            ComponentId::MeshRenderer => unimplemented_component(ComponentData::MeshRenderer)?,
-            ComponentId::TextMesh => unimplemented_component(ComponentData::TextMesh)?,
-            ComponentId::Light => unimplemented_component(ComponentData::Light)?,
-            ComponentId::LensFlare => unimplemented_component(ComponentData::LensFlare)?,
-            ComponentId::Projector => unimplemented_component(ComponentData::Projector)?,
-            ComponentId::SphereCollider => unimplemented_component(ComponentData::SphereCollider)?,
-            ComponentId::BoxCollider => unimplemented_component(ComponentData::BoxCollider)?,
-            ComponentId::CapsuleCollider => unimplemented_component(ComponentData::CapsuleCollider)?,
-            ComponentId::BezierSplineTrack => unimplemented_component(ComponentData::BezierSplineTrack)?,
-            ComponentId::TrackSegment => unimplemented_component(ComponentData::TrackSegment)?,
-            ComponentId::TrackLink => unimplemented_component(ComponentData::TrackLink)?,
-            ComponentId::RigidbodyAxisRotationLogic => unimplemented_component(ComponentData::RigidbodyAxisRotationLogic)?,
-            ComponentId::BackAndForthSawLogic => unimplemented_component(ComponentData::BackAndForthSawLogic)?,
-            ComponentId::CheckpointLogic => unimplemented_component(ComponentData::CheckpointLogic)?,
-            ComponentId::LightFlickerLogic => unimplemented_component(ComponentData::LightFlickerLogic)?,
-            ComponentId::Group => unimplemented_component(ComponentData::Group)?,
-            ComponentId::TutorialBoxText => unimplemented_component(ComponentData::TutorialBoxText)?,
-            ComponentId::FlyingRingLogic => unimplemented_component(ComponentData::FlyingRingLogic)?,
-            ComponentId::PopupBlockerLogic => unimplemented_component(ComponentData::PopupBlockerLogic)?,
-            ComponentId::PulseLight => unimplemented_component(ComponentData::PulseLight)?,
-            ComponentId::PulseMaterial => unimplemented_component(ComponentData::PulseMaterial)?,
-            ComponentId::SmoothRandomPosition => unimplemented_component(ComponentData::SmoothRandomPosition)?,
-            ComponentId::SoccerGoalLogic => unimplemented_component(ComponentData::SoccerGoalLogic)?,
-            ComponentId::VirusMineLogic => unimplemented_component(ComponentData::VirusMineLogic)?,
-            ComponentId::BrightenCarHeadlights => unimplemented_component(ComponentData::BrightenCarHeadlights)?,
-            ComponentId::GameData => unimplemented_component(ComponentData::GameData)?,
-            ComponentId::GraphicsSettings => unimplemented_component(ComponentData::GraphicsSettings)?,
-            ComponentId::AudioSettings => unimplemented_component(ComponentData::AudioSettings)?,
-            ComponentId::ControlsSettings => unimplemented_component(ComponentData::ControlsSettings)?,
-            ComponentId::Profile => unimplemented_component(ComponentData::Profile)?,
-            ComponentId::ToolInputCombos => unimplemented_component(ComponentData::ToolInputCombos)?,
-            ComponentId::ColorPreset => unimplemented_component(ComponentData::ColorPreset)?,
-            ComponentId::LocalLeaderboard => unimplemented_component(ComponentData::LocalLeaderboard)?,
-            ComponentId::AxisRotationLogic => unimplemented_component(ComponentData::AxisRotationLogic)?,
-            ComponentId::ParticleEmitLogic => unimplemented_component(ComponentData::ParticleEmitLogic)?,
-            ComponentId::VirusSpiritSpawner => unimplemented_component(ComponentData::VirusSpiritSpawner)?,
-            ComponentId::PulseRotateOnTrigger => unimplemented_component(ComponentData::PulseRotateOnTrigger)?,
-            ComponentId::TeleporterEntrance => unimplemented_component(ComponentData::TeleporterEntrance)?,
-            ComponentId::TeleporterExit => unimplemented_component(ComponentData::TeleporterExit)?,
-            ComponentId::ControlScheme => unimplemented_component(ComponentData::ControlScheme)?,
-            ComponentId::DeviceToSchemeLinks => unimplemented_component(ComponentData::DeviceToSchemeLinks)?,
-            ComponentId::ObjectSpawnCircle => unimplemented_component(ComponentData::ObjectSpawnCircle)?,
-            ComponentId::InterpolateToPositionOnTrigger => unimplemented_component(ComponentData::InterpolateToPositionOnTrigger)?,
-            ComponentId::EngageBrokenPieces => unimplemented_component(ComponentData::EngageBrokenPieces)?,
-            ComponentId::GravityToggle => unimplemented_component(ComponentData::GravityToggle)?,
-            ComponentId::CarSpawner => unimplemented_component(ComponentData::CarSpawner)?,
-            ComponentId::RaceStartCarSpawner => unimplemented_component(ComponentData::RaceStartCarSpawner)?,
-            ComponentId::LevelEditorCarSpawner => unimplemented_component(ComponentData::LevelEditorCarSpawner)?,
-            ComponentId::InfoDisplayLogic => unimplemented_component(ComponentData::InfoDisplayLogic)?,
-            ComponentId::MusicTrigger => unimplemented_component(ComponentData::MusicTrigger)?,
-            ComponentId::TabPopulator => unimplemented_component(ComponentData::TabPopulator)?,
-            ComponentId::AdventureAbilitySettings => unimplemented_component(ComponentData::AdventureAbilitySettings)?,
-            ComponentId::IndicatorDisplayLogic => unimplemented_component(ComponentData::IndicatorDisplayLogic)?,
-            ComponentId::PulseCoreLogic => unimplemented_component(ComponentData::PulseCoreLogic)?,
-            ComponentId::PulseAll => unimplemented_component(ComponentData::PulseAll)?,
-            ComponentId::TeleporterExitCheckpoint => unimplemented_component(ComponentData::TeleporterExitCheckpoint)?,
-            ComponentId::LevelSettings => unimplemented_component(ComponentData::LevelSettings)?,
-            ComponentId::WingCorruptionZone => unimplemented_component(ComponentData::WingCorruptionZone)?,
-            ComponentId::GenerateCreditsNames => unimplemented_component(ComponentData::GenerateCreditsNames)?,
-            ComponentId::IntroCutsceneLightFadeIn => unimplemented_component(ComponentData::IntroCutsceneLightFadeIn)?,
-            ComponentId::QuarantineTrigger => unimplemented_component(ComponentData::QuarantineTrigger)?,
-            ComponentId::CarScreenTextDecodeTrigger => unimplemented_component(ComponentData::CarScreenTextDecodeTrigger)?,
-            ComponentId::GlitchFieldLogic => unimplemented_component(ComponentData::GlitchFieldLogic)?,
-            ComponentId::FogSkyboxAmbientChangeTrigger => unimplemented_component(ComponentData::FogSkyboxAmbientChangeTrigger)?,
-            ComponentId::FinalCountdownLogic => unimplemented_component(ComponentData::FinalCountdownLogic)?,
-            ComponentId::SetActiveOnIntroCutsceneStarted => unimplemented_component(ComponentData::SetActiveOnIntroCutsceneStarted)?,
-            ComponentId::RaceEndLogic => unimplemented_component(ComponentData::RaceEndLogic)?,
-            ComponentId::EnableAbilitiesTrigger => unimplemented_component(ComponentData::EnableAbilitiesTrigger)?,
-            ComponentId::SphericalGravity => unimplemented_component(ComponentData::SphericalGravity)?,
-            ComponentId::CreditsNameOrbLogic => unimplemented_component(ComponentData::CreditsNameOrbLogic)?,
-            ComponentId::DisableLocalCarWarnings => unimplemented_component(ComponentData::DisableLocalCarWarnings)?,
-            ComponentId::CustomName => unimplemented_component(ComponentData::CustomName)?,
-            ComponentId::SplineSegment => unimplemented_component(ComponentData::SplineSegment)?,
-            ComponentId::WarningPulseLight => unimplemented_component(ComponentData::WarningPulseLight)?,
-            ComponentId::RumbleZone => unimplemented_component(ComponentData::RumbleZone)?,
-            ComponentId::HideOnVirusSpiritEvent => unimplemented_component(ComponentData::HideOnVirusSpiritEvent)?,
-            ComponentId::TrackAttachment => unimplemented_component(ComponentData::TrackAttachment)?,
-            ComponentId::LevelPlaylist => unimplemented_component(ComponentData::LevelPlaylist)?,
-            ComponentId::ProfileProgress => unimplemented_component(ComponentData::ProfileProgress)?,
-            ComponentId::GeneralSettings => unimplemented_component(ComponentData::GeneralSettings)?,
-            ComponentId::WorkshopPublishedFileInfos => unimplemented_component(ComponentData::WorkshopPublishedFileInfos)?,
-            ComponentId::WarpAnchor => unimplemented_component(ComponentData::WarpAnchor)?,
-            ComponentId::SetActiveOnMIDIEvent => unimplemented_component(ComponentData::SetActiveOnMIDIEvent)?,
-            ComponentId::TurnLightOnNearCar => unimplemented_component(ComponentData::TurnLightOnNearCar)?,
-            ComponentId::Traffic => unimplemented_component(ComponentData::Traffic)?,
-            ComponentId::TrackManipulatorNode => unimplemented_component(ComponentData::TrackManipulatorNode)?,
-            ComponentId::AudioEventTrigger => unimplemented_component(ComponentData::AudioEventTrigger)?,
-            ComponentId::LevelEditorSettings => unimplemented_component(ComponentData::LevelEditorSettings)?,
-            ComponentId::EmpireProximityDoorLogic => unimplemented_component(ComponentData::EmpireProximityDoorLogic)?,
-            ComponentId::Biodome => unimplemented_component(ComponentData::Biodome)?,
-            ComponentId::TunnelHorrorLogic => unimplemented_component(ComponentData::TunnelHorrorLogic)?,
-            ComponentId::VirusSpiritWarpTeaserLogic => unimplemented_component(ComponentData::VirusSpiritWarpTeaserLogic)?,
-            ComponentId::CarReplayData => unimplemented_component(ComponentData::CarReplayData)?,
-            ComponentId::LevelImageCamera => unimplemented_component(ComponentData::LevelImageCamera)?,
-            ComponentId::ParticlesGPU => unimplemented_component(ComponentData::ParticlesGPU)?,
-            ComponentId::KillGridBox => unimplemented_component(ComponentData::KillGridBox)?,
-            ComponentId::GoldenSimples => {
-                implemented_component(self, ComponentData::GoldenSimples, is_default_component, version, guid)?
-            }
-            ComponentId::SetActiveAfterWarp => unimplemented_component(ComponentData::SetActiveAfterWarp)?,
-            ComponentId::AmbientAudioObject => unimplemented_component(ComponentData::AmbientAudioObject)?,
-            ComponentId::BiodomeAudioInterpolator => unimplemented_component(ComponentData::BiodomeAudioInterpolator)?,
-            ComponentId::MoveElectricityAlongWire => unimplemented_component(ComponentData::MoveElectricityAlongWire)?,
-            ComponentId::ActivationRampLogic => unimplemented_component(ComponentData::ActivationRampLogic)?,
-            ComponentId::ZEventTrigger => unimplemented_component(ComponentData::ZEventTrigger)?,
-            ComponentId::ZEventListener => unimplemented_component(ComponentData::ZEventListener)?,
-            ComponentId::BlackPortalLogic => unimplemented_component(ComponentData::BlackPortalLogic)?,
-            ComponentId::VRSettings => unimplemented_component(ComponentData::VRSettings)?,
-            ComponentId::CutsceneCamera => unimplemented_component(ComponentData::CutsceneCamera)?,
-            ComponentId::ProfileStats => unimplemented_component(ComponentData::ProfileStats)?,
-            ComponentId::InterpolateToRotationOnTrigger => unimplemented_component(ComponentData::InterpolateToRotationOnTrigger)?,
-            ComponentId::MoveAlongAttachedTrack => unimplemented_component(ComponentData::MoveAlongAttachedTrack)?,
-            ComponentId::ShowDuringGlitch => unimplemented_component(ComponentData::ShowDuringGlitch)?,
-            ComponentId::AddCameraNoise => unimplemented_component(ComponentData::AddCameraNoise)?,
-            ComponentId::CarVoiceTrigger => unimplemented_component(ComponentData::CarVoiceTrigger)?,
-            ComponentId::HoverScreenSpecialObjectTrigger => unimplemented_component(ComponentData::HoverScreenSpecialObjectTrigger)?,
-            ComponentId::ReplaySettings => unimplemented_component(ComponentData::ReplaySettings)?,
-            ComponentId::CutsceneCamForTrailer => unimplemented_component(ComponentData::CutsceneCamForTrailer)?,
-            ComponentId::LevelInfos => unimplemented_component(ComponentData::LevelInfos)?,
-            ComponentId::AchievementTrigger => unimplemented_component(ComponentData::AchievementTrigger)?,
-            ComponentId::ArenaCarSpawner => unimplemented_component(ComponentData::ArenaCarSpawner)?,
-            ComponentId::Animated => unimplemented_component(ComponentData::Animated)?,
-            ComponentId::BlinkInTrigger => unimplemented_component(ComponentData::BlinkInTrigger)?,
-            ComponentId::CarScreenImageTrigger => unimplemented_component(ComponentData::CarScreenImageTrigger)?,
-            ComponentId::ExcludeFromEMP => unimplemented_component(ComponentData::ExcludeFromEMP)?,
-            ComponentId::InfiniteCooldownTrigger => unimplemented_component(ComponentData::InfiniteCooldownTrigger)?,
-            ComponentId::DiscoverableStuntArea => unimplemented_component(ComponentData::DiscoverableStuntArea)?,
-            ComponentId::ForceVolume => unimplemented_component(ComponentData::ForceVolume)?,
-            ComponentId::AdventureModeCompleteTrigger => unimplemented_component(ComponentData::AdventureModeCompleteTrigger)?,
-            ComponentId::CountdownTextMeshLogic => unimplemented_component(ComponentData::CountdownTextMeshLogic)?,
-            ComponentId::AbilitySignButtonColorLogic => unimplemented_component(ComponentData::AbilitySignButtonColorLogic)?,
-            ComponentId::GoldenAnimator => unimplemented_component(ComponentData::GoldenAnimator)?,
-            ComponentId::AnimatorAudio => unimplemented_component(ComponentData::AnimatorAudio)?,
-            ComponentId::AnimatorCameraShake => unimplemented_component(ComponentData::AnimatorCameraShake)?,
-            ComponentId::ShardCluster => unimplemented_component(ComponentData::ShardCluster)?,
-            ComponentId::AdventureSpecialIntro => unimplemented_component(ComponentData::AdventureSpecialIntro)?,
-            ComponentId::AudioEffectZone => unimplemented_component(ComponentData::AudioEffectZone)?,
-            ComponentId::CinematicCamera => unimplemented_component(ComponentData::CinematicCamera)?,
-            ComponentId::CinematicCameraFocalPoint => unimplemented_component(ComponentData::CinematicCameraFocalPoint)?,
-            ComponentId::SetAbilitiesTrigger => unimplemented_component(ComponentData::SetAbilitiesTrigger)?,
-            ComponentId::LostToEchoesIntroCutscene => unimplemented_component(ComponentData::LostToEchoesIntroCutscene)?,
-            ComponentId::CutsceneText => unimplemented_component(ComponentData::CutsceneText)?,
-            ComponentId::UltraPlanet => unimplemented_component(ComponentData::UltraPlanet)?,
-            ComponentId::DeadCarLogic => unimplemented_component(ComponentData::DeadCarLogic)?,
-            ComponentId::RollingBarrelDropperLogic => unimplemented_component(ComponentData::RollingBarrelDropperLogic)?,
-            ComponentId::AdventureFinishTrigger => unimplemented_component(ComponentData::AdventureFinishTrigger)?,
-            ComponentId::AchievementSettings => unimplemented_component(ComponentData::AchievementSettings)?,
-            ComponentId::InterpolateRTPCLogic => unimplemented_component(ComponentData::InterpolateRTPCLogic)?,
-            ComponentId::TriggerCooldownLogic => unimplemented_component(ComponentData::TriggerCooldownLogic)?,
-            ComponentId::ShadowsChangedListener => unimplemented_component(ComponentData::ShadowsChangedListener)?,
-            ComponentId::LookAtCamera => unimplemented_component(ComponentData::LookAtCamera)?,
-            ComponentId::CubeMapRenderer => unimplemented_component(ComponentData::CubeMapRenderer)?,
-            ComponentId::RealtimeReflectionRenderer => unimplemented_component(ComponentData::RealtimeReflectionRenderer)?,
-            ComponentId::VirusDropperDroneLogic => unimplemented_component(ComponentData::VirusDropperDroneLogic)?,
-            ComponentId::OnCollisionBreakApartLogic => unimplemented_component(ComponentData::OnCollisionBreakApartLogic)?,
-            ComponentId::CheatSettings => unimplemented_component(ComponentData::CheatSettings)?,
-            ComponentId::IgnoreInCullGroups => unimplemented_component(ComponentData::IgnoreInCullGroups)?,
-            ComponentId::IgnoreInputTrigger => unimplemented_component(ComponentData::IgnoreInputTrigger)?,
-            ComponentId::PowerPosterLogic => unimplemented_component(ComponentData::PowerPosterLogic)?,
-            ComponentId::MusicZone => unimplemented_component(ComponentData::MusicZone)?,
-            ComponentId::LightsFlickerLogic => unimplemented_component(ComponentData::LightsFlickerLogic)?,
-            ComponentId::CutsceneManagerLogic => unimplemented_component(ComponentData::CutsceneManagerLogic)?,
-            ComponentId::FadeOut => unimplemented_component(ComponentData::FadeOut)?,
-            ComponentId::Flock => unimplemented_component(ComponentData::Flock)?,
-            ComponentId::GPSTrigger => unimplemented_component(ComponentData::GPSTrigger)?,
-            ComponentId::SprintMode => unimplemented_component(ComponentData::SprintMode)?,
-            ComponentId::StuntMode => unimplemented_component(ComponentData::StuntMode)?,
-            ComponentId::SoccerMode => unimplemented_component(ComponentData::SoccerMode)?,
-            ComponentId::FreeRoamMode => unimplemented_component(ComponentData::FreeRoamMode)?,
-            ComponentId::ReverseTagMode => unimplemented_component(ComponentData::ReverseTagMode)?,
-            ComponentId::LevelEditorPlayMode => unimplemented_component(ComponentData::LevelEditorPlayMode)?,
-            ComponentId::CoopSprintMode => unimplemented_component(ComponentData::CoopSprintMode)?,
-            ComponentId::ChallengeMode => unimplemented_component(ComponentData::ChallengeMode)?,
-            ComponentId::AdventureMode => unimplemented_component(ComponentData::AdventureMode)?,
-            ComponentId::SpeedAndStyleMode => unimplemented_component(ComponentData::SpeedAndStyleMode)?,
-            ComponentId::TrackmogrifyMode => unimplemented_component(ComponentData::TrackmogrifyMode)?,
-            ComponentId::DemoMode => unimplemented_component(ComponentData::DemoMode)?,
-            ComponentId::MainMenuMode => unimplemented_component(ComponentData::MainMenuMode)?,
-            ComponentId::LostToEchoesMode => unimplemented_component(ComponentData::LostToEchoesMode)?,
-            ComponentId::NexusMode => unimplemented_component(ComponentData::NexusMode)?,
-            ComponentId::TheOtherSideMode => unimplemented_component(ComponentData::TheOtherSideMode)?,
-            _ => bail!("unserializable component `{:?}` encountered", component_id),
+        let builder = DeserializerComponentDataBuilder {
+            deserilizer: self,
+            version,
+            guid,
+            is_default_component,
         };
-
+        let component = Component::from_builder(component_id, builder)?;
         Ok(component)
     }
 
@@ -656,5 +425,62 @@ impl ScopeInfo {
 impl Display for ScopeInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}({})", self.name, self.scope_mark_string())
+    }
+}
+
+struct DeserializerComponentDataBuilder<'a, R: Read + Seek> {
+    deserilizer: &'a mut Deserializer<R>,
+    version: i32,
+    guid: u32,
+    is_default_component: bool,
+}
+
+impl<R: Read + Seek> ComponentBuilder for DeserializerComponentDataBuilder<'_, R> {
+    fn implemented<T: Serializable>(
+        &mut self,
+        component_data_constructor: fn(T) -> ComponentData,
+        implemented_version: i32,
+    ) -> Result<Component, Error> {
+        let mut inner_component = T::default();
+        if !self.is_default_component {
+            inner_component.accept(&mut self.deserilizer, self.version)?;
+        }
+        let component_data = component_data_constructor(inner_component);
+        let component = Component {
+            version: implemented_version,
+            guid: self.guid,
+            data: component_data,
+        };
+
+        Ok(component)
+    }
+
+    fn raw(
+        &mut self,
+        component_data_constructor: fn(RawComponentData) -> ComponentData,
+    ) -> Result<Component, Error> {
+        let component_data = if self.is_default_component {
+            component_data_constructor(RawComponentData::default())
+        } else {
+            let current_pos: usize = self.deserilizer.reader.stream_position()?.try_into()?;
+            let data_len = self
+                .deserilizer
+                .scope_info_stack
+                .last()
+                .map(|scope_info| scope_info.end_pos - current_pos)
+                .unwrap_or(0);
+
+            let mut data = vec![0; data_len];
+            self.deserilizer.reader.read_exact(&mut data)?;
+
+            component_data_constructor(RawComponentData(data))
+        };
+        let component = Component {
+            version: self.version,
+            guid: self.guid,
+            data: component_data,
+        };
+
+        Ok(component)
     }
 }

@@ -87,13 +87,13 @@ impl GameObject {
 }
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-enum VisitDirection {
+pub(crate) enum VisitDirection {
     In,
     Out,
 }
 
 #[auto_impl(&mut)]
-trait Visitor {
+pub(crate) trait Visitor {
     const VISIT_DIRECTION: VisitDirection;
 
     fn visit_bool(&mut self, name: &str, value: &mut bool) -> Result<(), Error>;
@@ -123,7 +123,7 @@ trait Visitor {
 }
 
 #[auto_impl(&mut)]
-trait Serializable: Default {
+pub(crate) trait Serializable: Default {
     const VERSION: i32;
 
     fn accept<V: Visitor>(&mut self, visitor: V, version: i32) -> Result<(), Error>;
