@@ -125,6 +125,13 @@ impl<W: Write + Seek> Serializer<W> {
     fn write_string(&mut self, string: &str) -> Result<(), Error> {
         string::write(&mut self.writer, string)
     }
+
+    fn write_array_start(&mut self, _name: &str, len: i32) -> Result<(), Error> {
+        self.writer.write_i32::<LE>(11111111)?;
+        self.writer.write_i32::<LE>(len)?;
+
+        Ok(())
+    }
 }
 
 impl<W: Write + Seek> Visitor for Serializer<W> {
@@ -209,6 +216,26 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
             self.writer.write_f32::<LE>(value.s)?;
         } else {
             self.write_empty()?;
+        }
+
+        Ok(())
+    }
+
+    fn visit_reference(&mut self, _name: &str, value: &mut u32) -> Result<(), Error> {
+        self.writer.write_u32::<LE>(*value)?;
+
+        Ok(())
+    }
+
+    fn visit_reference_array(
+        &mut self,
+        array_name: &str,
+        element_name: &str,
+        value: &mut Vec<u32>,
+    ) -> Result<(), Error> {
+        self.write_array_start(array_name, value.len().try_into()?)?;
+        for v in value {
+            self.visit_reference(element_name, v)?;
         }
 
         Ok(())

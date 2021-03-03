@@ -1,0 +1,41 @@
+use crate::internal::{Serializable, Visitor};
+use anyhow::Error;
+use enum_primitive_derive::Primitive;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+pub struct Group {
+    /// References to `TrackLink` components
+    links: Vec<u32>,
+
+    inspect_children: InspectChildrenType,
+}
+
+impl Serializable for Group {
+    const VERSION: i32 = 1;
+
+    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<(), Error> {
+        visitor.visit_reference_array("Links", "LinkRef", &mut self.links)?;
+
+        if version >= 1 {
+            visitor.visit_enum("inspectChildren_", &mut self.inspect_children)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(
+    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+)]
+enum InspectChildrenType {
+    None = 0,
+    Combined = 1,
+    All = 2,
+}
+
+impl Default for InspectChildrenType {
+    fn default() -> Self {
+        InspectChildrenType::None
+    }
+}

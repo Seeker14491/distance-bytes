@@ -104,6 +104,13 @@ pub(crate) trait Visitor {
     fn visit_string(&mut self, name: &str, value: &mut Option<String>) -> Result<(), Error>;
     fn visit_vector_3(&mut self, name: &str, value: &mut Vector3) -> Result<(), Error>;
     fn visit_quaternion(&mut self, name: &str, value: &mut Quaternion) -> Result<(), Error>;
+    fn visit_reference(&mut self, name: &str, value: &mut u32) -> Result<(), Error>;
+    fn visit_reference_array(
+        &mut self,
+        array_name: &str,
+        element_name: &str,
+        value: &mut Vec<u32>,
+    ) -> Result<(), Error>;
 
     fn visit_children(&mut self, value: &mut Vec<GameObject>) -> Result<(), Error>;
 

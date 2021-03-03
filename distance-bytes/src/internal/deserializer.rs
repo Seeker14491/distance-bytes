@@ -296,6 +296,20 @@ impl<R: Read + Seek> Deserializer<R> {
 
         Ok(())
     }
+
+    fn read_array_start(&mut self) -> Result<i32, Error> {
+        let mut mark = 0;
+        self.read_set_i32("arrayMark", &mut mark)?;
+
+        let mut len = -1;
+        if mark == 11111111 {
+            self.read_set_i32("array size", &mut len)?;
+        } else {
+            warn!("expected array mark `11111111` when reading the start of the array; found {} instead", mark);
+        }
+
+        Ok(len)
+    }
 }
 
 impl<R: Read + Seek> Visitor for Deserializer<R> {
@@ -369,6 +383,29 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
             self.read_set_f32("y", &mut value.v.y)?;
             self.read_set_f32("z", &mut value.v.z)?;
             self.read_set_f32("w", &mut value.s)?;
+        }
+
+        Ok(())
+    }
+
+    fn visit_reference(&mut self, name: &str, value: &mut u32) -> Result<(), Error> {
+        self.read_set_u32(name, value)?;
+
+        Ok(())
+    }
+
+    fn visit_reference_array(
+        &mut self,
+        _array_name: &str,
+        element_name: &str,
+        value: &mut Vec<u32>,
+    ) -> Result<(), Error> {
+        let len: usize = self.read_array_start()?.try_into().unwrap_or(0);
+        value.clear();
+        value.resize(len, 0);
+
+        for reference in value {
+            self.visit_reference(element_name, reference)?;
         }
 
         Ok(())

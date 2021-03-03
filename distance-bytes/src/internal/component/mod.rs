@@ -1,5 +1,7 @@
 pub use custom_name::CustomName;
 pub use golden_simples::{GoldenSimples, GoldenSimplesPresets};
+pub use group::Group;
+pub use track_link::TrackLink;
 pub use transform::Transform;
 
 use crate::internal::Serializable;
@@ -11,6 +13,8 @@ use std::any::TypeId;
 
 mod custom_name;
 mod golden_simples;
+mod group;
+mod track_link;
 mod transform;
 
 // TODO: Handle components that have a name string instead of id and version.
@@ -60,14 +64,14 @@ impl Component {
             ComponentId::ConstantForce => unserializable(),
             ComponentId::BezierSplineTrack => builder.raw(ComponentData::BezierSplineTrack),
             ComponentId::TrackSegment => builder.raw(ComponentData::TrackSegment),
-            ComponentId::TrackLink => builder.raw(ComponentData::TrackLink),
+            ComponentId::TrackLink => builder.implemented(ComponentData::TrackLink, TrackLink::VERSION),
             ComponentId::RigidbodyAxisRotationLogic => builder.raw(ComponentData::RigidbodyAxisRotationLogic),
             ComponentId::BackAndForthSawLogic => builder.raw(ComponentData::BackAndForthSawLogic),
             ComponentId::CheckpointLogic => builder.raw(ComponentData::CheckpointLogic),
             ComponentId::LaserLogic => unserializable(),
             ComponentId::LightFlickerLogic => builder.raw(ComponentData::LightFlickerLogic),
             ComponentId::SceneryCameraLogic => unserializable(),
-            ComponentId::Group => builder.raw(ComponentData::Group),
+            ComponentId::Group => builder.implemented(ComponentData::Group, Group::VERSION),
             ComponentId::SkyboxAdder => unserializable(),
             ComponentId::LevelCubeMapRenderer => unserializable(),
             ComponentId::LevelGodRayCaster => unserializable(),
@@ -740,12 +744,12 @@ pub enum ComponentData {
     CapsuleCollider(RawComponentData),
     BezierSplineTrack(RawComponentData),
     TrackSegment(RawComponentData),
-    TrackLink(RawComponentData),
+    TrackLink(TrackLink),
     RigidbodyAxisRotationLogic(RawComponentData),
     BackAndForthSawLogic(RawComponentData),
     CheckpointLogic(RawComponentData),
     LightFlickerLogic(RawComponentData),
-    Group(RawComponentData),
+    Group(Group),
     TutorialBoxText(RawComponentData),
     FlyingRingLogic(RawComponentData),
     PopupBlockerLogic(RawComponentData),
@@ -1115,12 +1119,12 @@ impl ComponentData {
             ComponentData::CapsuleCollider(data) => dispatcher.raw(data),
             ComponentData::BezierSplineTrack(data) => dispatcher.raw(data),
             ComponentData::TrackSegment(data) => dispatcher.raw(data),
-            ComponentData::TrackLink(data) => dispatcher.raw(data),
+            ComponentData::TrackLink(data) => dispatcher.implemented(data),
             ComponentData::RigidbodyAxisRotationLogic(data) => dispatcher.raw(data),
             ComponentData::BackAndForthSawLogic(data) => dispatcher.raw(data),
             ComponentData::CheckpointLogic(data) => dispatcher.raw(data),
             ComponentData::LightFlickerLogic(data) => dispatcher.raw(data),
-            ComponentData::Group(data) => dispatcher.raw(data),
+            ComponentData::Group(data) => dispatcher.implemented(data),
             ComponentData::TutorialBoxText(data) => dispatcher.raw(data),
             ComponentData::FlyingRingLogic(data) => dispatcher.raw(data),
             ComponentData::PopupBlockerLogic(data) => dispatcher.raw(data),
