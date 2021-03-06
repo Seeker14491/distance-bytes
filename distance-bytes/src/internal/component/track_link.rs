@@ -7,15 +7,15 @@ use serde::{Deserialize, Serialize};
 )]
 pub struct TrackLink {
     /// Reference to a `TrackLinkParent`
-    parent: u32,
+    pub parent: u32,
 
     /// Reference to a `TrackLink`
-    link: u32,
+    pub link: u32,
 
     /// Reference to a `TrackManipulatorNode`
-    manipulator_node: u32,
+    pub manipulator_node: u32,
 
-    owned_node_between_connected_links: bool,
+    pub owned_node_between_connected_links: bool,
 }
 
 impl Serializable for TrackLink {

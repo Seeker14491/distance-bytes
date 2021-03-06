@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct CustomName {
-    custom_name: Option<String>,
+    pub custom_name: Option<String>,
 }
 
 impl Serializable for CustomName {

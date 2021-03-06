@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Group {
     /// References to `TrackLink` components
-    links: Vec<u32>,
+    pub links: Vec<u32>,
 
-    inspect_children: InspectChildrenType,
+    pub inspect_children: InspectChildrenType,
 }
 
 impl Serializable for Group {
@@ -28,7 +28,7 @@ impl Serializable for Group {
 #[derive(
     Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
 )]
-enum InspectChildrenType {
+pub enum InspectChildrenType {
     None = 0,
     Combined = 1,
     All = 2,
