@@ -8,7 +8,7 @@ pub struct Group {
     /// References to `TrackLink` components
     pub links: Vec<u32>,
 
-    pub inspect_children: InspectChildrenType,
+    pub inspect_children: GroupInspectChildrenType,
 }
 
 impl Serializable for Group {
@@ -28,14 +28,14 @@ impl Serializable for Group {
 #[derive(
     Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
 )]
-pub enum InspectChildrenType {
+pub enum GroupInspectChildrenType {
     None = 0,
     Combined = 1,
     All = 2,
 }
 
-impl Default for InspectChildrenType {
+impl Default for GroupInspectChildrenType {
     fn default() -> Self {
-        InspectChildrenType::None
+        GroupInspectChildrenType::None
     }
 }

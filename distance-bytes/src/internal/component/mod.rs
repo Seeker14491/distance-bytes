@@ -1,6 +1,6 @@
 pub use custom_name::CustomName;
 pub use golden_simples::{GoldenSimples, GoldenSimplesPresets};
-pub use group::{Group, InspectChildrenType};
+pub use group::{Group, GroupInspectChildrenType};
 pub use track_link::TrackLink;
 pub use transform::Transform;
 
