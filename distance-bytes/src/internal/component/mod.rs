@@ -1,6 +1,9 @@
+pub use box_collider::BoxCollider;
+pub use capsule_collider::CapsuleCollider;
 pub use custom_name::CustomName;
 pub use golden_simples::{GoldenSimples, GoldenSimplesPresets};
 pub use group::{Group, GroupInspectChildrenType};
+pub use sphere_collider::SphereCollider;
 pub use track_link::TrackLink;
 pub use transform::Transform;
 
@@ -11,9 +14,12 @@ use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::any::TypeId;
 
+mod box_collider;
+mod capsule_collider;
 mod custom_name;
 mod golden_simples;
 mod group;
+mod sphere_collider;
 mod track_link;
 mod transform;
 
@@ -56,9 +62,9 @@ impl Component {
             ComponentId::ParticleSystem => unserializable(),
             ComponentId::Projector => builder.raw(ComponentData::Projector),
             ComponentId::MeshCollider => unserializable(),
-            ComponentId::SphereCollider => builder.raw(ComponentData::SphereCollider),
-            ComponentId::BoxCollider => builder.raw(ComponentData::BoxCollider),
-            ComponentId::CapsuleCollider => builder.raw(ComponentData::CapsuleCollider),
+            ComponentId::SphereCollider => builder.implemented(ComponentData::SphereCollider, SphereCollider::VERSION),
+            ComponentId::BoxCollider => builder.implemented(ComponentData::BoxCollider, BoxCollider::VERSION),
+            ComponentId::CapsuleCollider => builder.implemented(ComponentData::CapsuleCollider, CapsuleCollider::VERSION),
             ComponentId::Rigidbody => unserializable(),
             ComponentId::AudioSource => unserializable(),
             ComponentId::ConstantForce => unserializable(),
@@ -739,9 +745,9 @@ pub enum ComponentData {
     Light(RawComponentData),
     LensFlare(RawComponentData),
     Projector(RawComponentData),
-    SphereCollider(RawComponentData),
-    BoxCollider(RawComponentData),
-    CapsuleCollider(RawComponentData),
+    SphereCollider(SphereCollider),
+    BoxCollider(BoxCollider),
+    CapsuleCollider(CapsuleCollider),
     BezierSplineTrack(RawComponentData),
     TrackSegment(RawComponentData),
     TrackLink(TrackLink),
@@ -1114,9 +1120,9 @@ impl ComponentData {
             ComponentData::Light(data) => dispatcher.raw(data),
             ComponentData::LensFlare(data) => dispatcher.raw(data),
             ComponentData::Projector(data) => dispatcher.raw(data),
-            ComponentData::SphereCollider(data) => dispatcher.raw(data),
-            ComponentData::BoxCollider(data) => dispatcher.raw(data),
-            ComponentData::CapsuleCollider(data) => dispatcher.raw(data),
+            ComponentData::SphereCollider(data) => dispatcher.implemented(data),
+            ComponentData::BoxCollider(data) => dispatcher.implemented(data),
+            ComponentData::CapsuleCollider(data) => dispatcher.implemented(data),
             ComponentData::BezierSplineTrack(data) => dispatcher.raw(data),
             ComponentData::TrackSegment(data) => dispatcher.raw(data),
             ComponentData::TrackLink(data) => dispatcher.implemented(data),

@@ -128,6 +128,13 @@ pub(crate) trait Visitor {
 
         Ok(())
     }
+
+    fn visit_serial_collider_deprecated(&mut self, _name: &str) -> Result<(), Error> {
+        self.visit_bool("IsTrigger", &mut false)?;
+        self.visit_string("PhysicMaterialName", &mut None)?;
+
+        Ok(())
+    }
 }
 
 #[auto_impl(&mut)]
