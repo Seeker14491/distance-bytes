@@ -313,6 +313,8 @@ impl<R: Read + Seek> Deserializer<R> {
 }
 
 impl<R: Read + Seek> Visitor for Deserializer<R> {
+    type Self_ = Self;
+
     const VISIT_DIRECTION: VisitDirection = VisitDirection::In;
 
     fn visit_bool(&mut self, name: &str, value: &mut bool) -> Result<(), Error> {
@@ -406,6 +408,28 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
 
         for reference in value {
             self.visit_reference(element_name, reference)?;
+        }
+
+        Ok(())
+    }
+
+    fn visit_array<T, F>(
+        &mut self,
+        _element_name: &str,
+        array: &mut Vec<T>,
+        mut visit_t_fn: F,
+    ) -> Result<(), Error>
+    where
+        T: Default,
+        F: FnMut(&mut Self::Self_, &mut T) -> Result<(), Error>,
+    {
+        let array_len = usize::try_from(self.read_array_start()?);
+        if let Ok(len) = array_len {
+            array.clear();
+            array.resize_with(len, T::default);
+            for element in array {
+                visit_t_fn(self, element)?;
+            }
         }
 
         Ok(())

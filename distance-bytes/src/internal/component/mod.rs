@@ -3,6 +3,7 @@ pub use capsule_collider::CapsuleCollider;
 pub use custom_name::CustomName;
 pub use golden_simples::{GoldenSimples, GoldenSimplesPresets};
 pub use group::{Group, GroupInspectChildrenType};
+pub use mesh_renderer::MeshRenderer;
 pub use sphere_collider::SphereCollider;
 pub use track_link::TrackLink;
 pub use transform::Transform;
@@ -19,6 +20,7 @@ mod capsule_collider;
 mod custom_name;
 mod golden_simples;
 mod group;
+mod mesh_renderer;
 mod sphere_collider;
 mod track_link;
 mod transform;
@@ -50,7 +52,7 @@ impl Component {
             ComponentId::None => unserializable(),
             ComponentId::Transform => builder.implemented(ComponentData::Transform, Transform::VERSION),
             ComponentId::GoldenSimples => builder.implemented(ComponentData::GoldenSimples, GoldenSimples::VERSION),
-            ComponentId::MeshRenderer => builder.raw(ComponentData::MeshRenderer),
+            ComponentId::MeshRenderer => builder.implemented(ComponentData::MeshRenderer, MeshRenderer::VERSION),
             ComponentId::MeshFilter => unserializable(),
             ComponentId::SkinnedMeshRenderer => unserializable(),
             ComponentId::LineRenderer => unserializable(),
@@ -740,7 +742,7 @@ impl From<ComponentId> for i32 {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum ComponentData {
     Transform(Transform),
-    MeshRenderer(RawComponentData),
+    MeshRenderer(MeshRenderer),
     TextMesh(RawComponentData),
     Light(RawComponentData),
     LensFlare(RawComponentData),
@@ -1115,7 +1117,7 @@ impl ComponentData {
         match self {
             ComponentData::Transform(data) => dispatcher.implemented(data),
             ComponentData::GoldenSimples(data) => dispatcher.implemented(data),
-            ComponentData::MeshRenderer(data) => dispatcher.raw(data),
+            ComponentData::MeshRenderer(data) => dispatcher.implemented(data),
             ComponentData::TextMesh(data) => dispatcher.raw(data),
             ComponentData::Light(data) => dispatcher.raw(data),
             ComponentData::LensFlare(data) => dispatcher.raw(data),

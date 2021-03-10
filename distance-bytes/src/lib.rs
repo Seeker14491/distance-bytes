@@ -7,7 +7,7 @@
 )]
 
 pub use crate::internal::component::{Component, ComponentData, RawComponentData};
-pub use crate::internal::GameObject;
+pub use crate::internal::{Color, GameObject, MaterialColorInfo, MaterialInfo};
 
 pub mod component;
 

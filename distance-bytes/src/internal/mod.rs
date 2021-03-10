@@ -86,6 +86,32 @@ impl GameObject {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct MaterialInfo {
+    pub mat_name: Option<String>,
+    pub colors: Vec<MaterialColorInfo>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct MaterialColorInfo {
+    pub name: Option<String>,
+    pub color: Color,
+}
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Color {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+impl Color {
+    pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Color { r, g, b, a }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum VisitDirection {
     In,
@@ -93,7 +119,13 @@ pub(crate) enum VisitDirection {
 }
 
 #[auto_impl(&mut)]
-pub(crate) trait Visitor {
+pub(crate) trait Visitor
+where
+    Self: Sized,
+{
+    // Workaround for a problem with referencing `Self` while using the `auto_impl` macro
+    type Self_: Visitor;
+
     const VISIT_DIRECTION: VisitDirection;
 
     fn visit_bool(&mut self, name: &str, value: &mut bool) -> Result<(), Error>;
@@ -111,6 +143,47 @@ pub(crate) trait Visitor {
         element_name: &str,
         value: &mut Vec<u32>,
     ) -> Result<(), Error>;
+
+    fn visit_material_info(&mut self, _name: &str, value: &mut MaterialInfo) -> Result<(), Error> {
+        self.visit_string("MatName", &mut value.mat_name)?;
+        self.visit_array("", &mut value.colors, |visitor, element| {
+            visitor.visit_material_color_info("", element)
+        })?;
+
+        Ok(())
+    }
+
+    fn visit_material_color_info(
+        &mut self,
+        _name: &str,
+        value: &mut MaterialColorInfo,
+    ) -> Result<(), Error> {
+        self.visit_string("Name", &mut value.name)?;
+
+        value.color = Color::new(1.0, 1.0, 1.0, 1.0);
+        self.visit_color("Color", &mut value.color)?;
+
+        Ok(())
+    }
+
+    fn visit_color(&mut self, _name: &str, value: &mut Color) -> Result<(), Error> {
+        self.visit_f32("r", &mut value.r)?;
+        self.visit_f32("g", &mut value.g)?;
+        self.visit_f32("b", &mut value.b)?;
+        self.visit_f32("a", &mut value.a)?;
+
+        Ok(())
+    }
+
+    fn visit_array<T, F>(
+        &mut self,
+        element_name: &str,
+        array: &mut Vec<T>,
+        visit_t_fn: F,
+    ) -> Result<(), Error>
+    where
+        T: Default,
+        F: FnMut(&mut Self::Self_, &mut T) -> Result<(), Error>;
 
     fn visit_children(&mut self, value: &mut Vec<GameObject>) -> Result<(), Error>;
 

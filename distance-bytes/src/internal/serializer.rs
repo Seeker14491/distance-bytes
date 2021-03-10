@@ -135,6 +135,8 @@ impl<W: Write + Seek> Serializer<W> {
 }
 
 impl<W: Write + Seek> Visitor for Serializer<W> {
+    type Self_ = Self;
+
     const VISIT_DIRECTION: VisitDirection = VisitDirection::Out;
 
     fn visit_bool(&mut self, _name: &str, value: &mut bool) -> Result<(), Error> {
@@ -236,6 +238,24 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         self.write_array_start(array_name, value.len().try_into()?)?;
         for v in value {
             self.visit_reference(element_name, v)?;
+        }
+
+        Ok(())
+    }
+
+    fn visit_array<T, F>(
+        &mut self,
+        _element_name: &str,
+        array: &mut Vec<T>,
+        mut visit_t_fn: F,
+    ) -> Result<(), Error>
+    where
+        T: Default,
+        F: FnMut(&mut Self::Self_, &mut T) -> Result<(), Error>,
+    {
+        self.write_array_start("Ints", array.len().try_into()?)?;
+        for element in array {
+            visit_t_fn(self, element)?;
         }
 
         Ok(())
