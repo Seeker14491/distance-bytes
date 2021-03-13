@@ -7,7 +7,10 @@
 )]
 
 pub use crate::internal::component::{Component, ComponentData, RawComponentData};
-pub use crate::internal::{Color, GameObject, MaterialColorInfo, MaterialInfo};
+pub use crate::internal::{
+    Color, GameObject, MaterialColorInfo, MaterialInfo, Quaternion, Vector3, DEFAULT_QUATERNION,
+    ONES_VECTOR_3, ZEROS_VECTOR_3,
+};
 
 pub mod component;
 

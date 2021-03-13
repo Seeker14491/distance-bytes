@@ -19,19 +19,19 @@ mod util;
 #[cfg(test)]
 mod test_util;
 
-pub(crate) const ZEROS_VECTOR_3: Vector3 = Vector3 {
+pub const ZEROS_VECTOR_3: Vector3 = Vector3 {
     x: 0.0,
     y: 0.0,
     z: 0.0,
 };
 
-pub(crate) const ONES_VECTOR_3: Vector3 = Vector3 {
+pub const ONES_VECTOR_3: Vector3 = Vector3 {
     x: 1.0,
     y: 1.0,
     z: 1.0,
 };
 
-pub(crate) const DEFAULT_QUATERNION: Quaternion = Quaternion {
+pub const DEFAULT_QUATERNION: Quaternion = Quaternion {
     v: Vector3 {
         x: 0.0,
         y: 0.0,
