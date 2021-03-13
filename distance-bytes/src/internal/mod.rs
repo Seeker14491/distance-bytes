@@ -160,7 +160,9 @@ where
     ) -> Result<(), Error> {
         self.visit_string("Name", &mut value.name)?;
 
-        value.color = Color::new(1.0, 1.0, 1.0, 1.0);
+        if Self::VISIT_DIRECTION == VisitDirection::In {
+            value.color = Color::new(1.0, 1.0, 1.0, 1.0);
+        }
         self.visit_color("Color", &mut value.color)?;
 
         Ok(())
