@@ -1,3 +1,4 @@
+pub use animated::{Animated, AnimatedMotionType, AnimatedTranslateType};
 pub use box_collider::BoxCollider;
 pub use capsule_collider::CapsuleCollider;
 pub use custom_name::CustomName;
@@ -15,6 +16,7 @@ use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::any::TypeId;
 
+mod animated;
 mod box_collider;
 mod capsule_collider;
 mod custom_name;
@@ -203,7 +205,7 @@ impl Component {
             ComponentId::LevelInfos => builder.raw(ComponentData::LevelInfos),
             ComponentId::AchievementTrigger => builder.raw(ComponentData::AchievementTrigger),
             ComponentId::ArenaCarSpawner => builder.raw(ComponentData::ArenaCarSpawner),
-            ComponentId::Animated => builder.raw(ComponentData::Animated),
+            ComponentId::Animated => builder.implemented(ComponentData::Animated, Animated::VERSION),
             ComponentId::BlinkInTrigger => builder.raw(ComponentData::BlinkInTrigger),
             ComponentId::CarScreenImageTrigger => builder.raw(ComponentData::CarScreenImageTrigger),
             ComponentId::ExcludeFromEMP => builder.raw(ComponentData::ExcludeFromEMP),
@@ -861,7 +863,7 @@ pub enum ComponentData {
     LevelInfos(RawComponentData),
     AchievementTrigger(RawComponentData),
     ArenaCarSpawner(RawComponentData),
-    Animated(RawComponentData),
+    Animated(Animated),
     BlinkInTrigger(RawComponentData),
     CarScreenImageTrigger(RawComponentData),
     ExcludeFromEMP(RawComponentData),
@@ -1235,7 +1237,7 @@ impl ComponentData {
             ComponentData::LevelInfos(data) => dispatcher.raw(data),
             ComponentData::AchievementTrigger(data) => dispatcher.raw(data),
             ComponentData::ArenaCarSpawner(data) => dispatcher.raw(data),
-            ComponentData::Animated(data) => dispatcher.raw(data),
+            ComponentData::Animated(data) => dispatcher.implemented(data),
             ComponentData::BlinkInTrigger(data) => dispatcher.raw(data),
             ComponentData::CarScreenImageTrigger(data) => dispatcher.raw(data),
             ComponentData::ExcludeFromEMP(data) => dispatcher.raw(data),

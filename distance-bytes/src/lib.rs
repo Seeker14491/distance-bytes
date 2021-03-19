@@ -6,6 +6,7 @@
     unused_qualifications
 )]
 
+pub use crate::internal::animator_base::*;
 pub use crate::internal::component::{Component, ComponentData, RawComponentData};
 pub use crate::internal::{
     Color, GameObject, MaterialColorInfo, MaterialInfo, Quaternion, Vector3, DEFAULT_QUATERNION,

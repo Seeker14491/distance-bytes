@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::path::Path;
 
+pub(crate) mod animator_base;
 pub(crate) mod component;
 pub(crate) mod deserializer;
 pub(crate) mod serializer;
