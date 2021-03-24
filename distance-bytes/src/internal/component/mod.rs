@@ -8,6 +8,8 @@ pub use mesh_renderer::MeshRenderer;
 pub use sphere_collider::SphereCollider;
 pub use track_link::TrackLink;
 pub use transform::Transform;
+pub use z_event_listener::ZEventListener;
+pub use z_event_trigger::ZEventTrigger;
 
 use crate::internal::Serializable;
 use anyhow::{anyhow, Error};
@@ -26,6 +28,8 @@ mod mesh_renderer;
 mod sphere_collider;
 mod track_link;
 mod transform;
+mod z_event_listener;
+mod z_event_trigger;
 
 // TODO: Handle components that have a name string instead of id and version.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -188,8 +192,8 @@ impl Component {
             ComponentId::BiodomeAudioInterpolator => builder.raw(ComponentData::BiodomeAudioInterpolator),
             ComponentId::MoveElectricityAlongWire => builder.raw(ComponentData::MoveElectricityAlongWire),
             ComponentId::ActivationRampLogic => builder.raw(ComponentData::ActivationRampLogic),
-            ComponentId::ZEventTrigger => builder.raw(ComponentData::ZEventTrigger),
-            ComponentId::ZEventListener => builder.raw(ComponentData::ZEventListener),
+            ComponentId::ZEventTrigger => builder.implemented(ComponentData::ZEventTrigger, ZEventTrigger::VERSION),
+            ComponentId::ZEventListener => builder.implemented(ComponentData::ZEventListener, ZEventListener::VERSION),
             ComponentId::BlackPortalLogic => builder.raw(ComponentData::BlackPortalLogic),
             ComponentId::VRSettings => builder.raw(ComponentData::VRSettings),
             ComponentId::CutsceneCamera => builder.raw(ComponentData::CutsceneCamera),
@@ -846,8 +850,8 @@ pub enum ComponentData {
     BiodomeAudioInterpolator(RawComponentData),
     MoveElectricityAlongWire(RawComponentData),
     ActivationRampLogic(RawComponentData),
-    ZEventTrigger(RawComponentData),
-    ZEventListener(RawComponentData),
+    ZEventTrigger(ZEventTrigger),
+    ZEventListener(ZEventListener),
     BlackPortalLogic(RawComponentData),
     VRSettings(RawComponentData),
     CutsceneCamera(RawComponentData),
@@ -1220,8 +1224,8 @@ impl ComponentData {
             ComponentData::BiodomeAudioInterpolator(data) => dispatcher.raw(data),
             ComponentData::MoveElectricityAlongWire(data) => dispatcher.raw(data),
             ComponentData::ActivationRampLogic(data) => dispatcher.raw(data),
-            ComponentData::ZEventTrigger(data) => dispatcher.raw(data),
-            ComponentData::ZEventListener(data) => dispatcher.raw(data),
+            ComponentData::ZEventTrigger(data) => dispatcher.implemented(data),
+            ComponentData::ZEventListener(data) => dispatcher.implemented(data),
             ComponentData::BlackPortalLogic(data) => dispatcher.raw(data),
             ComponentData::VRSettings(data) => dispatcher.raw(data),
             ComponentData::CutsceneCamera(data) => dispatcher.raw(data),

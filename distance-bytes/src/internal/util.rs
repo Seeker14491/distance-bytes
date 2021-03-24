@@ -1,4 +1,5 @@
 use crate::internal::{Quaternion, Vector3, EMPTY_MARK};
+use std::hash::{Hash, Hasher};
 
 // Based on Unity's `Mathf.Approximately()` function
 pub(crate) trait ApproximatelyEquals {
@@ -43,4 +44,12 @@ pub(crate) fn scope_mark_string(scope_mark: i32) -> &'static str {
         n if n == EMPTY_MARK => "Empty",
         _ => "INVALID",
     }
+}
+
+pub(crate) fn hash_to_i32<H: Hash>(value: &H) -> i32 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    (hash as i32) ^ ((hash >> 32) as i32)
 }
