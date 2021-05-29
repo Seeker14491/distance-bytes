@@ -18,7 +18,8 @@ jobs:
       
       - uses: actions-rs/cargo@v1
         with:
-          command: test --all-features
+          command: test
+          args: --all-features
 
   clippy_check:
     runs-on: ubuntu-latest
@@ -52,7 +53,8 @@ jobs:
             
       - uses: actions-rs/cargo@v1
         with:
-          command: fmt -- check
+          command: fmt
+          args: -- --check
           
   wasm_check:
     runs-on: ubuntu-latest
@@ -61,10 +63,12 @@ jobs:
 
       - uses: actions-rs/toolchain@v1
         with:
+            toolchain: stable
             profile: minimal
             target: wasm32-unknown-unknown
             override: true
 
       - uses: actions-rs/cargo@v1
         with:
-          command: check --target wasm32-unknown-unknown --all-features
+          command: check
+          args: --target wasm32-unknown-unknown --all-features
