@@ -1,0 +1,69 @@
+name: Rust
+
+on:
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+jobs:      
+  cargo_test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v2
+      
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test --all-features
+
+  clippy_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: nightly
+            profile: minimal
+            components: clippy
+            override: true
+      
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features
+          command: clippy
+          
+  rustfmt_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+    
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: nightly
+            profile: minimal
+            components: rustfmt
+            override: true
+            
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt -- check
+          
+  wasm_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+            profile: minimal
+            target: wasm32-unknown-unknown
+            override: true
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check --target wasm32-unknown-unknown --all-features
