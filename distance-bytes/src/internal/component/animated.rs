@@ -1,6 +1,6 @@
 use crate::internal::{Serializable, Visitor};
 use crate::{AnimatorBase, Vector3, ZEROS_VECTOR_3};
-use anyhow::Error;
+use anyhow::Result;
 use enum_primitive_derive::Primitive;
 use serde::{Deserialize, Serialize};
 
@@ -76,7 +76,7 @@ impl Default for Animated {
 impl Serializable for Animated {
     const VERSION: i32 = 11;
 
-    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<(), Error> {
+    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<()> {
         visitor.visit_enum("motion_", &mut self.motion)?;
         if version >= 1 {
             visitor.visit_bool("scale_", &mut self.scale)?;

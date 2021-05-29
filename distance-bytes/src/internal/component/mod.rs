@@ -12,7 +12,7 @@ pub use z_event_listener::ZEventListener;
 pub use z_event_trigger::ZEventTrigger;
 
 use crate::internal::Serializable;
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Result};
 use enum_primitive_derive::Primitive;
 use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
@@ -50,7 +50,7 @@ impl Component {
     pub(crate) fn from_builder(
         component_id: ComponentId,
         mut builder: impl ComponentBuilder,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         let unserializable = || Err(anyhow!("{:?} in not a serializable component", component_id));
 
         match component_id {
@@ -1119,7 +1119,7 @@ impl ComponentData {
     pub(crate) fn dispatch<D: ComponentDataDispatch>(
         &mut self,
         mut dispatcher: D,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         match self {
             ComponentData::Transform(data) => dispatcher.implemented(data),
             ComponentData::GoldenSimples(data) => dispatcher.implemented(data),
@@ -1310,8 +1310,8 @@ impl ComponentData {
 pub struct RawComponentData(pub Vec<u8>);
 
 pub(crate) trait ComponentDataDispatch {
-    fn implemented<T: Serializable>(&mut self, data: &mut T) -> Result<(), Error>;
-    fn raw(&mut self, data: &RawComponentData) -> Result<(), Error>;
+    fn implemented<T: Serializable>(&mut self, data: &mut T) -> Result<()>;
+    fn raw(&mut self, data: &RawComponentData) -> Result<()>;
 }
 
 pub(crate) trait ComponentBuilder {
@@ -1319,9 +1319,9 @@ pub(crate) trait ComponentBuilder {
         &mut self,
         component_data_constructor: fn(T) -> ComponentData,
         implemented_version: i32,
-    ) -> Result<Component, Error>;
+    ) -> Result<Component>;
     fn raw(
         &mut self,
         component_data_constructor: fn(RawComponentData) -> ComponentData,
-    ) -> Result<Component, Error>;
+    ) -> Result<Component>;
 }

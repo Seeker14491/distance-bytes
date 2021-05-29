@@ -1,5 +1,5 @@
 use crate::internal::{MaterialInfo, Serializable, Visitor, ZEROS_VECTOR_3};
-use anyhow::Error;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -10,7 +10,7 @@ pub struct MeshRenderer {
 impl Serializable for MeshRenderer {
     const VERSION: i32 = 2;
 
-    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<(), Error> {
+    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<()> {
         if version < 1 {
             visitor.visit_bool("CastShadows", &mut false)?;
             visitor.visit_bool("ReceiveShadows", &mut false)?;

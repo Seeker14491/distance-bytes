@@ -1,5 +1,5 @@
 use crate::internal::{Serializable, Vector3, Visitor, ONES_VECTOR_3, ZEROS_VECTOR_3};
-use anyhow::Error;
+use anyhow::Result;
 use enum_primitive_derive::Primitive;
 use serde::{Deserialize, Serialize};
 
@@ -47,7 +47,7 @@ impl Default for GoldenSimples {
 impl Serializable for GoldenSimples {
     const VERSION: i32 = 4;
 
-    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<(), Error> {
+    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<()> {
         const TEXTURE_COUNT: i32 = 72;
         const TEXTURE_COUNT_VERSION_1: i32 = 35;
         const TEXTURE_COUNT_VERSION_2: i32 = 46;

@@ -1,5 +1,5 @@
 use crate::internal::{Serializable, Vector3, Visitor, ZEROS_VECTOR_3};
-use anyhow::Error;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -20,7 +20,7 @@ impl Default for SphereCollider {
 impl Serializable for SphereCollider {
     const VERSION: i32 = 1;
 
-    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<(), Error> {
+    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<()> {
         visitor.visit_vector_3("Center", &mut self.center)?;
         visitor.visit_f32("Radius", &mut self.radius)?;
         if version < 1 {

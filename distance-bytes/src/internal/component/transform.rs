@@ -3,7 +3,7 @@ use crate::internal::{
     ZEROS_VECTOR_3,
 };
 use crate::GameObject;
-use anyhow::Error;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -28,7 +28,7 @@ impl Default for Transform {
 impl Serializable for Transform {
     const VERSION: i32 = 0;
 
-    fn accept<V: Visitor>(&mut self, mut visitor: V, _version: i32) -> Result<(), Error> {
+    fn accept<V: Visitor>(&mut self, mut visitor: V, _version: i32) -> Result<()> {
         visitor.visit_vector_3("Position", &mut self.position)?;
         visitor.visit_quaternion("Rotation", &mut self.rotation)?;
         visitor.visit_vector_3("Scale", &mut self.scale)?;

@@ -3,7 +3,7 @@ use crate::internal::{
     string, util, ComponentId, GameObject, Quaternion, Serializable, Vector3, VisitDirection,
     Visitor, EMPTY_MARK,
 };
-use anyhow::Error;
+use anyhow::Result;
 use byteorder::{ReadBytesExt, LE};
 use num_traits::FromPrimitive;
 use paste::paste;
@@ -15,7 +15,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::{fmt, io, mem};
 use tracing::{debug, warn};
 
-pub fn read_game_object(reader: impl Read + Seek) -> Result<GameObject, Error> {
+pub fn read_game_object(reader: impl Read + Seek) -> Result<GameObject> {
     Deserializer::new(reader).read_game_object()
 }
 
@@ -33,7 +33,7 @@ impl<R: Read + Seek> Deserializer<R> {
         }
     }
 
-    fn read_game_object(&mut self) -> Result<GameObject, Error> {
+    fn read_game_object(&mut self) -> Result<GameObject> {
         let (prefab_name, guid) = self.read_game_object_start(true)?;
         let components = self.read_game_object_contents(guid)?;
 
@@ -51,7 +51,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(game_object)
     }
 
-    fn read_game_object_contents(&mut self, _guid: u32) -> Result<Vec<Component>, Error> {
+    fn read_game_object_contents(&mut self, _guid: u32) -> Result<Vec<Component>> {
         self.read_components()
     }
 
@@ -59,7 +59,7 @@ impl<R: Read + Seek> Deserializer<R> {
     #[allow(dead_code)]
     fn add_object_to_references(&mut self, _guid: u32) {}
 
-    fn read_components(&mut self) -> Result<Vec<Component>, Error> {
+    fn read_components(&mut self) -> Result<Vec<Component>> {
         let mut num_components = 0;
         self.read_set_i32("numComponents", &mut num_components)?;
         let mut components = Vec::with_capacity(num_components.try_into()?);
@@ -72,7 +72,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(components)
     }
 
-    fn read_component(&mut self) -> Result<Option<Component>, Error> {
+    fn read_component(&mut self) -> Result<Option<Component>> {
         let mut component_id = ComponentId::Invalid_;
         let mut name = String::new();
         let mut component_version = 0;
@@ -118,7 +118,7 @@ impl<R: Read + Seek> Deserializer<R> {
         component_id: ComponentId,
         version: i32,
         guid: u32,
-    ) -> Result<Component, Error> {
+    ) -> Result<Component> {
         let is_default_component = self.is_empty_scope()?;
         let builder = DeserializerComponentDataBuilder {
             deserilizer: self,
@@ -130,7 +130,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(component)
     }
 
-    fn check_and_adjust_for_scope_bounds<NextElement>(&mut self) -> Result<bool, Error> {
+    fn check_and_adjust_for_scope_bounds<NextElement>(&mut self) -> Result<bool> {
         let scope_info = match self.scope_info_stack.last() {
             Some(info) => info,
             None => {
@@ -150,7 +150,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(true)
     }
 
-    fn empty_marker(&mut self) -> Result<bool, Error> {
+    fn empty_marker(&mut self) -> Result<bool> {
         const MARK_SIZE: usize = mem::size_of::<i32>();
 
         let mut buf = [0_u8; 4];
@@ -171,7 +171,7 @@ impl<R: Read + Seek> Deserializer<R> {
         }
     }
 
-    fn is_empty_scope(&mut self) -> Result<bool, Error> {
+    fn is_empty_scope(&mut self) -> Result<bool> {
         if let Some(scope_info) = self.scope_info_stack.last() {
             Ok(self.reader.stream_position()? == u64::try_from(scope_info.end_pos)?)
         } else {
@@ -181,7 +181,7 @@ impl<R: Read + Seek> Deserializer<R> {
         }
     }
 
-    fn read_set_string(&mut self, _name: &str, val: &mut String) -> Result<(), Error> {
+    fn read_set_string(&mut self, _name: &str, val: &mut String) -> Result<()> {
         *val = string::read(&mut self.reader)?;
 
         Ok(())
@@ -190,7 +190,7 @@ impl<R: Read + Seek> Deserializer<R> {
     fn read_game_object_start(
         &mut self,
         push_in_scope_stack: bool,
-    ) -> Result<(String, u32), Error> {
+    ) -> Result<(String, u32)> {
         let mut name = String::new();
         let mut guid = 0;
         self.read_start_scope_with_mark(66666666, push_in_scope_stack)?;
@@ -202,7 +202,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok((name, guid))
     }
 
-    fn read_start_scope(&mut self, push_in_scope_stack: bool) -> Result<i32, Error> {
+    fn read_start_scope(&mut self, push_in_scope_stack: bool) -> Result<i32> {
         let mark = self.reader.read_i32::<LE>()?;
         self.read_start_scope_helper(mark, push_in_scope_stack)?;
 
@@ -213,7 +213,7 @@ impl<R: Read + Seek> Deserializer<R> {
         &mut self,
         mark: i32,
         push_in_scope_stack: bool,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let n = self.reader.read_i32::<LE>()?;
         if n == mark {
             self.read_start_scope_helper(mark, push_in_scope_stack)?;
@@ -234,7 +234,7 @@ impl<R: Read + Seek> Deserializer<R> {
         &mut self,
         mark: i32,
         push_in_scope_stack: bool,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let scope_len: usize = self.reader.read_i64::<LE>()?.try_into()?;
         if push_in_scope_stack {
             let start = self.reader.stream_position()?.try_into()?;
@@ -246,7 +246,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(())
     }
 
-    fn read_end_scope(&mut self, log_warn: bool) -> Result<(), Error> {
+    fn read_end_scope(&mut self, log_warn: bool) -> Result<()> {
         if let Some(scope_info) = self.scope_info_stack.pop() {
             self.read_end_scope_helper(&scope_info, log_warn)?;
         } else {
@@ -260,7 +260,7 @@ impl<R: Read + Seek> Deserializer<R> {
         &mut self,
         scope_info: &ScopeInfo,
         log_warn: bool,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let actual_pos = self.reader.stream_position()?;
         let info_pos: u64 = scope_info.end_pos.try_into()?;
         let str_1 = match actual_pos.cmp(&info_pos) {
@@ -289,7 +289,7 @@ impl<R: Read + Seek> Deserializer<R> {
         }
     }
 
-    fn read_set_u8(&mut self, _name: &str, val: &mut u8) -> Result<(), Error> {
+    fn read_set_u8(&mut self, _name: &str, val: &mut u8) -> Result<()> {
         if self.check_and_adjust_for_scope_bounds::<u8>()? {
             *val = self.reader.read_u8()?;
         }
@@ -297,7 +297,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(())
     }
 
-    fn read_array_start(&mut self) -> Result<i32, Error> {
+    fn read_array_start(&mut self) -> Result<i32> {
         let mut mark = 0;
         self.read_set_i32("arrayMark", &mut mark)?;
 
@@ -317,7 +317,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
 
     const VISIT_DIRECTION: VisitDirection = VisitDirection::In;
 
-    fn visit_bool(&mut self, name: &str, value: &mut bool) -> Result<(), Error> {
+    fn visit_bool(&mut self, name: &str, value: &mut bool) -> Result<()> {
         if !self.empty_marker()? {
             let mut n = *value as u8;
             self.read_set_u8(name, &mut n)?;
@@ -327,7 +327,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
-    fn visit_i32(&mut self, name: &str, value: &mut i32) -> Result<(), Error> {
+    fn visit_i32(&mut self, name: &str, value: &mut i32) -> Result<()> {
         if !self.empty_marker()? {
             self.read_set_i32(name, value)?;
         }
@@ -335,7 +335,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
-    fn visit_u32(&mut self, name: &str, value: &mut u32) -> Result<(), Error> {
+    fn visit_u32(&mut self, name: &str, value: &mut u32) -> Result<()> {
         if !self.empty_marker()? {
             self.read_set_u32(name, value)?;
         }
@@ -343,7 +343,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
-    fn visit_i64(&mut self, name: &str, value: &mut i64) -> Result<(), Error> {
+    fn visit_i64(&mut self, name: &str, value: &mut i64) -> Result<()> {
         if !self.empty_marker()? {
             self.read_set_i64(name, value)?;
         }
@@ -351,7 +351,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
-    fn visit_f32(&mut self, name: &str, value: &mut f32) -> Result<(), Error> {
+    fn visit_f32(&mut self, name: &str, value: &mut f32) -> Result<()> {
         if !self.empty_marker()? {
             self.read_set_f32(name, value)?;
         }
@@ -359,7 +359,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
-    fn visit_string(&mut self, name: &str, value: &mut Option<String>) -> Result<(), Error> {
+    fn visit_string(&mut self, name: &str, value: &mut Option<String>) -> Result<()> {
         if !self.empty_marker()? {
             let mut s = String::new();
             self.read_set_string(name, &mut s)?;
@@ -369,7 +369,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
-    fn visit_vector_3(&mut self, _name: &str, value: &mut Vector3) -> Result<(), Error> {
+    fn visit_vector_3(&mut self, _name: &str, value: &mut Vector3) -> Result<()> {
         if !self.empty_marker()? {
             self.read_set_f32("x", &mut value.x)?;
             self.read_set_f32("y", &mut value.y)?;
@@ -379,7 +379,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
-    fn visit_quaternion(&mut self, _name: &str, value: &mut Quaternion) -> Result<(), Error> {
+    fn visit_quaternion(&mut self, _name: &str, value: &mut Quaternion) -> Result<()> {
         if !self.empty_marker()? {
             self.read_set_f32("x", &mut value.v.x)?;
             self.read_set_f32("y", &mut value.v.y)?;
@@ -390,7 +390,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
-    fn visit_reference(&mut self, name: &str, value: &mut u32) -> Result<(), Error> {
+    fn visit_reference(&mut self, name: &str, value: &mut u32) -> Result<()> {
         self.read_set_u32(name, value)?;
 
         Ok(())
@@ -401,7 +401,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         _array_name: &str,
         element_name: &str,
         value: &mut Vec<u32>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let len: usize = self.read_array_start()?.try_into().unwrap_or(0);
         value.clear();
         value.resize(len, 0);
@@ -418,10 +418,10 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         _element_name: &str,
         array: &mut Vec<T>,
         mut visit_t_fn: F,
-    ) -> Result<(), Error>
+    ) -> Result<()>
     where
         T: Default,
-        F: FnMut(&mut Self::Self_, &mut T) -> Result<(), Error>,
+        F: FnMut(&mut Self::Self_, &mut T) -> Result<()>,
     {
         let array_len = usize::try_from(self.read_array_start()?);
         if let Ok(len) = array_len {
@@ -435,7 +435,7 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
-    fn visit_children(&mut self, value: &mut Vec<GameObject>) -> Result<(), Error> {
+    fn visit_children(&mut self, value: &mut Vec<GameObject>) -> Result<()> {
         self.read_start_scope_with_mark(55555555, true)?;
         let mut num_children = 0;
         self.read_set_i32("numberOfChildren", &mut num_children)?;
@@ -453,7 +453,7 @@ macro_rules! impl_read_set {
     ($type_:ty) => {
         impl<R: Read + Seek> Deserializer<R> {
             paste! {
-                fn [<read_set_ $type_>](&mut self, _name: &str, val: &mut $type_) -> Result<(), Error> {
+                fn [<read_set_ $type_>](&mut self, _name: &str, val: &mut $type_) -> Result<()> {
                     if self.check_and_adjust_for_scope_bounds::<$type_>()? {
                         *val = self.reader.[<read_ $type_>]::<LE>()?;
                     }
@@ -511,7 +511,7 @@ impl<R: Read + Seek> ComponentBuilder for DeserializerComponentDataBuilder<'_, R
         &mut self,
         component_data_constructor: fn(T) -> ComponentData,
         implemented_version: i32,
-    ) -> Result<Component, Error> {
+    ) -> Result<Component> {
         let mut inner_component = T::default();
         if !self.is_default_component {
             inner_component.accept(&mut self.deserilizer, self.version)?;
@@ -529,7 +529,7 @@ impl<R: Read + Seek> ComponentBuilder for DeserializerComponentDataBuilder<'_, R
     fn raw(
         &mut self,
         component_data_constructor: fn(RawComponentData) -> ComponentData,
-    ) -> Result<Component, Error> {
+    ) -> Result<Component> {
         let component_data = if self.is_default_component {
             component_data_constructor(RawComponentData::default())
         } else {

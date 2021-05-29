@@ -1,5 +1,5 @@
 use crate::internal::{Serializable, Visitor};
-use anyhow::Error;
+use anyhow::Result;
 use enum_primitive_derive::Primitive;
 use serde::{Deserialize, Serialize};
 
@@ -14,7 +14,7 @@ pub struct Group {
 impl Serializable for Group {
     const VERSION: i32 = 1;
 
-    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<(), Error> {
+    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<()> {
         visitor.visit_reference_array("Links", "LinkRef", &mut self.links)?;
 
         if version >= 1 {

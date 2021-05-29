@@ -1,5 +1,5 @@
 use crate::internal::{util, Serializable, Visitor};
-use anyhow::Error;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::mem;
 
@@ -21,7 +21,7 @@ impl Default for ZEventTrigger {
 impl Serializable for ZEventTrigger {
     const VERSION: i32 = 2;
 
-    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<(), Error> {
+    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<()> {
         if version <= 1 {
             let mut hash = util::hash_to_i32(&self.event_name);
             visitor.visit_i32("Event ID", &mut hash)?;

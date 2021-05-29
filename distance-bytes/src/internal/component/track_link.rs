@@ -1,5 +1,5 @@
 use crate::internal::{Serializable, Visitor};
-use anyhow::Error;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(
@@ -21,7 +21,7 @@ pub struct TrackLink {
 impl Serializable for TrackLink {
     const VERSION: i32 = 2;
 
-    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<(), Error> {
+    fn accept<V: Visitor>(&mut self, mut visitor: V, version: i32) -> Result<()> {
         match version {
             1 => {
                 visitor.visit_reference("SegRef", &mut self.parent)?;

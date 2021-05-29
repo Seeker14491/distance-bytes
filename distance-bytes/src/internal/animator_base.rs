@@ -1,5 +1,5 @@
 use crate::internal::{VisitDirection, Visitor};
-use anyhow::Error;
+use anyhow::Result;
 use enum_primitive_derive::Primitive;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +26,7 @@ pub struct AnimatorBase {
 }
 
 impl AnimatorBase {
-    pub(crate) fn visit_curve<V: Visitor>(&mut self, mut visitor: V) -> Result<(), Error> {
+    pub(crate) fn visit_curve<V: Visitor>(&mut self, mut visitor: V) -> Result<()> {
         visitor.visit_f32("delay_", &mut self.delay)?;
         visitor.visit_f32("duration_", &mut self.duration)?;
         visitor.visit_f32("timeOffset_", &mut self.time_offset)?;
@@ -52,7 +52,7 @@ impl AnimatorBase {
         &mut self,
         mut visitor: V,
         old_animation_t: bool,
-    ) -> Result<bool, Error> {
+    ) -> Result<bool> {
         visitor.visit_f32("delay_", &mut self.delay)?;
         visitor.visit_f32("duration_", &mut self.duration)?;
         visitor.visit_f32("timeOffset_", &mut self.time_offset)?;
@@ -88,7 +88,7 @@ impl AnimatorBase {
         Ok(extrapolation_type == AnimatorBaseExtrapolationTypeObsolete::PingPong)
     }
 
-    pub(crate) fn visit_trigger<V: Visitor>(&mut self, mut visitor: V) -> Result<(), Error> {
+    pub(crate) fn visit_trigger<V: Visitor>(&mut self, mut visitor: V) -> Result<()> {
         visitor.visit_enum("defaultAction_", &mut self.default_action)?;
 
         visitor.visit_enum("onAction_", &mut self.on_action)?;

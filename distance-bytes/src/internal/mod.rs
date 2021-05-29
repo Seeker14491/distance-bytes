@@ -1,6 +1,6 @@
 pub use component::ComponentId;
 
-use anyhow::Error;
+use anyhow::Result;
 use auto_impl::auto_impl;
 use component::Component;
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -68,20 +68,20 @@ pub struct GameObject {
 }
 
 impl GameObject {
-    pub fn read_from_reader(reader: impl Read + Seek) -> Result<GameObject, Error> {
+    pub fn read_from_reader(reader: impl Read + Seek) -> Result<GameObject> {
         deserializer::read_game_object(reader)
     }
 
-    pub fn read_from_file(path: impl AsRef<Path>) -> Result<GameObject, Error> {
+    pub fn read_from_file(path: impl AsRef<Path>) -> Result<GameObject> {
         let mut file = BufReader::new(File::open(path.as_ref())?);
         deserializer::read_game_object(&mut file)
     }
 
-    pub fn write_to_reader(&mut self, writer: impl Write + Seek) -> Result<(), Error> {
+    pub fn write_to_reader(&mut self, writer: impl Write + Seek) -> Result<()> {
         serializer::write_game_object(writer, self)
     }
 
-    pub fn write_to_file(&mut self, path: impl AsRef<Path>) -> Result<(), Error> {
+    pub fn write_to_file(&mut self, path: impl AsRef<Path>) -> Result<()> {
         let mut file = BufWriter::new(File::create(path.as_ref())?);
         serializer::write_game_object(&mut file, self)
     }
@@ -129,23 +129,23 @@ where
 
     const VISIT_DIRECTION: VisitDirection;
 
-    fn visit_bool(&mut self, name: &str, value: &mut bool) -> Result<(), Error>;
-    fn visit_i32(&mut self, name: &str, value: &mut i32) -> Result<(), Error>;
-    fn visit_u32(&mut self, name: &str, value: &mut u32) -> Result<(), Error>;
-    fn visit_i64(&mut self, name: &str, value: &mut i64) -> Result<(), Error>;
-    fn visit_f32(&mut self, name: &str, value: &mut f32) -> Result<(), Error>;
-    fn visit_string(&mut self, name: &str, value: &mut Option<String>) -> Result<(), Error>;
-    fn visit_vector_3(&mut self, name: &str, value: &mut Vector3) -> Result<(), Error>;
-    fn visit_quaternion(&mut self, name: &str, value: &mut Quaternion) -> Result<(), Error>;
-    fn visit_reference(&mut self, name: &str, value: &mut u32) -> Result<(), Error>;
+    fn visit_bool(&mut self, name: &str, value: &mut bool) -> Result<()>;
+    fn visit_i32(&mut self, name: &str, value: &mut i32) -> Result<()>;
+    fn visit_u32(&mut self, name: &str, value: &mut u32) -> Result<()>;
+    fn visit_i64(&mut self, name: &str, value: &mut i64) -> Result<()>;
+    fn visit_f32(&mut self, name: &str, value: &mut f32) -> Result<()>;
+    fn visit_string(&mut self, name: &str, value: &mut Option<String>) -> Result<()>;
+    fn visit_vector_3(&mut self, name: &str, value: &mut Vector3) -> Result<()>;
+    fn visit_quaternion(&mut self, name: &str, value: &mut Quaternion) -> Result<()>;
+    fn visit_reference(&mut self, name: &str, value: &mut u32) -> Result<()>;
     fn visit_reference_array(
         &mut self,
         array_name: &str,
         element_name: &str,
         value: &mut Vec<u32>,
-    ) -> Result<(), Error>;
+    ) -> Result<()>;
 
-    fn visit_material_info(&mut self, _name: &str, value: &mut MaterialInfo) -> Result<(), Error> {
+    fn visit_material_info(&mut self, _name: &str, value: &mut MaterialInfo) -> Result<()> {
         self.visit_string("MatName", &mut value.mat_name)?;
         self.visit_array("", &mut value.colors, |visitor, element| {
             visitor.visit_material_color_info("", element)
@@ -158,7 +158,7 @@ where
         &mut self,
         _name: &str,
         value: &mut MaterialColorInfo,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         self.visit_string("Name", &mut value.name)?;
 
         if Self::VISIT_DIRECTION == VisitDirection::In {
@@ -169,7 +169,7 @@ where
         Ok(())
     }
 
-    fn visit_color(&mut self, _name: &str, value: &mut Color) -> Result<(), Error> {
+    fn visit_color(&mut self, _name: &str, value: &mut Color) -> Result<()> {
         self.visit_f32("r", &mut value.r)?;
         self.visit_f32("g", &mut value.g)?;
         self.visit_f32("b", &mut value.b)?;
@@ -183,18 +183,18 @@ where
         element_name: &str,
         array: &mut Vec<T>,
         visit_t_fn: F,
-    ) -> Result<(), Error>
+    ) -> Result<()>
     where
         T: Default,
-        F: FnMut(&mut Self::Self_, &mut T) -> Result<(), Error>;
+        F: FnMut(&mut Self::Self_, &mut T) -> Result<()>;
 
-    fn visit_children(&mut self, value: &mut Vec<GameObject>) -> Result<(), Error>;
+    fn visit_children(&mut self, value: &mut Vec<GameObject>) -> Result<()>;
 
     fn visit_enum<T: FromPrimitive + ToPrimitive>(
         &mut self,
         name: &str,
         value: &mut T,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let mut n = value.to_i32().unwrap();
         self.visit_i32(name, &mut n)?;
 
@@ -205,7 +205,7 @@ where
         Ok(())
     }
 
-    fn visit_serial_collider_deprecated(&mut self, _name: &str) -> Result<(), Error> {
+    fn visit_serial_collider_deprecated(&mut self, _name: &str) -> Result<()> {
         self.visit_bool("IsTrigger", &mut false)?;
         self.visit_string("PhysicMaterialName", &mut None)?;
 
@@ -217,5 +217,5 @@ where
 pub(crate) trait Serializable: Default {
     const VERSION: i32;
 
-    fn accept<V: Visitor>(&mut self, visitor: V, version: i32) -> Result<(), Error>;
+    fn accept<V: Visitor>(&mut self, visitor: V, version: i32) -> Result<()>;
 }

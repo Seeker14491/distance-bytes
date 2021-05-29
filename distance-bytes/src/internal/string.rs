@@ -1,9 +1,9 @@
-use anyhow::{ensure, Error};
+use anyhow::{ensure, Result};
 use byteorder::{ReadBytesExt, WriteBytesExt, LE};
 use std::io::{Read, Write};
 use widestring::U16String;
 
-pub(crate) fn read(mut reader: impl Read) -> Result<String, Error> {
+pub(crate) fn read(mut reader: impl Read) -> Result<String> {
     let mut string_len_in_bytes: usize = 0;
     for i in 0.. {
         ensure!(i <= 4, "Too many bytes in encoded string length");
@@ -31,7 +31,7 @@ pub(crate) fn read(mut reader: impl Read) -> Result<String, Error> {
     Ok(string)
 }
 
-pub(crate) fn write(mut writer: impl Write, s: &str) -> Result<(), Error> {
+pub(crate) fn write(mut writer: impl Write, s: &str) -> Result<()> {
     let s = U16String::from_str(s);
     let s = s.as_slice();
     let string_len_in_bytes = 2 * s.len();
