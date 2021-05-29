@@ -187,10 +187,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(())
     }
 
-    fn read_game_object_start(
-        &mut self,
-        push_in_scope_stack: bool,
-    ) -> Result<(String, u32)> {
+    fn read_game_object_start(&mut self, push_in_scope_stack: bool) -> Result<(String, u32)> {
         let mut name = String::new();
         let mut guid = 0;
         self.read_start_scope_with_mark(66666666, push_in_scope_stack)?;
@@ -209,11 +206,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(mark)
     }
 
-    fn read_start_scope_with_mark(
-        &mut self,
-        mark: i32,
-        push_in_scope_stack: bool,
-    ) -> Result<()> {
+    fn read_start_scope_with_mark(&mut self, mark: i32, push_in_scope_stack: bool) -> Result<()> {
         let n = self.reader.read_i32::<LE>()?;
         if n == mark {
             self.read_start_scope_helper(mark, push_in_scope_stack)?;
@@ -230,11 +223,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(())
     }
 
-    fn read_start_scope_helper(
-        &mut self,
-        mark: i32,
-        push_in_scope_stack: bool,
-    ) -> Result<()> {
+    fn read_start_scope_helper(&mut self, mark: i32, push_in_scope_stack: bool) -> Result<()> {
         let scope_len: usize = self.reader.read_i64::<LE>()?.try_into()?;
         if push_in_scope_stack {
             let start = self.reader.stream_position()?.try_into()?;
@@ -256,11 +245,7 @@ impl<R: Read + Seek> Deserializer<R> {
         Ok(())
     }
 
-    fn read_end_scope_helper(
-        &mut self,
-        scope_info: &ScopeInfo,
-        log_warn: bool,
-    ) -> Result<()> {
+    fn read_end_scope_helper(&mut self, scope_info: &ScopeInfo, log_warn: bool) -> Result<()> {
         let actual_pos = self.reader.stream_position()?;
         let info_pos: u64 = scope_info.end_pos.try_into()?;
         let str_1 = match actual_pos.cmp(&info_pos) {
@@ -354,6 +339,14 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
     fn visit_f32(&mut self, name: &str, value: &mut f32) -> Result<()> {
         if !self.empty_marker()? {
             self.read_set_f32(name, value)?;
+        }
+
+        Ok(())
+    }
+
+    fn visit_f64(&mut self, name: &str, value: &mut f64) -> Result<()> {
+        if !self.empty_marker()? {
+            self.read_set_f64(name, value)?;
         }
 
         Ok(())
@@ -469,6 +462,7 @@ impl_read_set!(i32);
 impl_read_set!(u32);
 impl_read_set!(i64);
 impl_read_set!(f32);
+impl_read_set!(f64);
 
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
 struct ScopeInfo {

@@ -5,6 +5,7 @@ pub use custom_name::CustomName;
 pub use golden_simples::{GoldenSimples, GoldenSimplesPresets};
 pub use group::{Group, GroupInspectChildrenType};
 pub use mesh_renderer::MeshRenderer;
+pub use profile_stats::ProfileStats;
 pub use sphere_collider::SphereCollider;
 pub use track_link::TrackLink;
 pub use transform::Transform;
@@ -25,6 +26,7 @@ mod custom_name;
 mod golden_simples;
 mod group;
 mod mesh_renderer;
+mod profile_stats;
 mod sphere_collider;
 mod track_link;
 mod transform;
@@ -197,7 +199,7 @@ impl Component {
             ComponentId::BlackPortalLogic => builder.raw(ComponentData::BlackPortalLogic),
             ComponentId::VRSettings => builder.raw(ComponentData::VRSettings),
             ComponentId::CutsceneCamera => builder.raw(ComponentData::CutsceneCamera),
-            ComponentId::ProfileStats => builder.raw(ComponentData::ProfileStats),
+            ComponentId::ProfileStats => builder.implemented(ComponentData::ProfileStats, ProfileStats::VERSION),
             ComponentId::InterpolateToRotationOnTrigger => builder.raw(ComponentData::InterpolateToRotationOnTrigger),
             ComponentId::MoveAlongAttachedTrack => builder.raw(ComponentData::MoveAlongAttachedTrack),
             ComponentId::ShowDuringGlitch => builder.raw(ComponentData::ShowDuringGlitch),
@@ -855,7 +857,7 @@ pub enum ComponentData {
     BlackPortalLogic(RawComponentData),
     VRSettings(RawComponentData),
     CutsceneCamera(RawComponentData),
-    ProfileStats(RawComponentData),
+    ProfileStats(ProfileStats),
     InterpolateToRotationOnTrigger(RawComponentData),
     MoveAlongAttachedTrack(RawComponentData),
     ShowDuringGlitch(RawComponentData),
@@ -1116,10 +1118,7 @@ impl ComponentData {
         }
     }
 
-    pub(crate) fn dispatch<D: ComponentDataDispatch>(
-        &mut self,
-        mut dispatcher: D,
-    ) -> Result<()> {
+    pub(crate) fn dispatch<D: ComponentDataDispatch>(&mut self, mut dispatcher: D) -> Result<()> {
         match self {
             ComponentData::Transform(data) => dispatcher.implemented(data),
             ComponentData::GoldenSimples(data) => dispatcher.implemented(data),
@@ -1229,7 +1228,7 @@ impl ComponentData {
             ComponentData::BlackPortalLogic(data) => dispatcher.raw(data),
             ComponentData::VRSettings(data) => dispatcher.raw(data),
             ComponentData::CutsceneCamera(data) => dispatcher.raw(data),
-            ComponentData::ProfileStats(data) => dispatcher.raw(data),
+            ComponentData::ProfileStats(data) => dispatcher.implemented(data),
             ComponentData::InterpolateToRotationOnTrigger(data) => dispatcher.raw(data),
             ComponentData::MoveAlongAttachedTrack(data) => dispatcher.raw(data),
             ComponentData::ShowDuringGlitch(data) => dispatcher.raw(data),

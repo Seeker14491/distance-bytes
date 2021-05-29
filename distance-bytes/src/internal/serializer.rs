@@ -9,10 +9,7 @@ use std::convert::TryInto;
 use std::io::{Seek, SeekFrom, Write};
 use util::ApproximatelyEquals;
 
-pub fn write_game_object(
-    writer: impl Write + Seek,
-    game_object: &mut GameObject,
-) -> Result<()> {
+pub fn write_game_object(writer: impl Write + Seek, game_object: &mut GameObject) -> Result<()> {
     Serializer::new(writer).write_game_object(game_object)
 }
 
@@ -73,11 +70,7 @@ impl<W: Write + Seek> Serializer<W> {
         component.data.dispatch(dispatcher)
     }
 
-    fn write_component_start(
-        &mut self,
-        component: &Component,
-        scope_mark: i32,
-    ) -> Result<()> {
+    fn write_component_start(&mut self, component: &Component, scope_mark: i32) -> Result<()> {
         self.write_start_scope(scope_mark)?;
         self.writer.write_i32::<LE>(component.id().into())?;
         self.writer.write_i32::<LE>(component.version)?;
@@ -178,6 +171,16 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
     fn visit_f32(&mut self, _name: &str, value: &mut f32) -> Result<()> {
         if !value.approximately_equals(&INVALID_FLOAT) {
             self.writer.write_f32::<LE>(*value)?;
+        } else {
+            self.write_empty()?;
+        }
+
+        Ok(())
+    }
+
+    fn visit_f64(&mut self, _name: &str, value: &mut f64) -> Result<()> {
+        if !(*value as f32).approximately_equals(&INVALID_FLOAT) {
+            self.writer.write_f64::<LE>(*value)?;
         } else {
             self.write_empty()?;
         }

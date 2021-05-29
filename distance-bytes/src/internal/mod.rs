@@ -12,6 +12,7 @@ use std::path::Path;
 pub(crate) mod animator_base;
 pub(crate) mod component;
 pub(crate) mod deserializer;
+pub(crate) mod player_stats;
 pub(crate) mod serializer;
 
 mod string;
@@ -134,6 +135,7 @@ where
     fn visit_u32(&mut self, name: &str, value: &mut u32) -> Result<()>;
     fn visit_i64(&mut self, name: &str, value: &mut i64) -> Result<()>;
     fn visit_f32(&mut self, name: &str, value: &mut f32) -> Result<()>;
+    fn visit_f64(&mut self, name: &str, value: &mut f64) -> Result<()>;
     fn visit_string(&mut self, name: &str, value: &mut Option<String>) -> Result<()>;
     fn visit_vector_3(&mut self, name: &str, value: &mut Vector3) -> Result<()>;
     fn visit_quaternion(&mut self, name: &str, value: &mut Quaternion) -> Result<()>;
