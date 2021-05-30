@@ -215,7 +215,7 @@ where
     }
 }
 
-#[auto_impl(&mut)]
+#[auto_impl(&mut, Box)]
 pub(crate) trait Serializable: Default {
     const VERSION: i32;
 
