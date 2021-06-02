@@ -14,7 +14,7 @@ pub use z_event_listener::ZEventListener;
 pub use z_event_trigger::ZEventTrigger;
 
 use crate::internal::Serializable;
-use anyhow::{anyhow, Result};
+use anyhow::{format_err, Result};
 use enum_primitive_derive::Primitive;
 use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
@@ -55,7 +55,7 @@ impl Component {
         component_id: ComponentId,
         mut builder: impl ComponentBuilder,
     ) -> Result<Self> {
-        let unserializable = || Err(anyhow!("{:?} in not a serializable component", component_id));
+        let unserializable = || Err(format_err!("{:?} in not a serializable component", component_id));
 
         match component_id {
             ComponentId::Invalid_ => unserializable(),
