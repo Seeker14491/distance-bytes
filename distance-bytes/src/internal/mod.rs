@@ -3,6 +3,7 @@ pub use component::ComponentId;
 use anyhow::Result;
 use auto_impl::auto_impl;
 use component::Component;
+use enum_primitive_derive::Primitive;
 use num_traits::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -61,7 +62,7 @@ pub(crate) const EMPTY_MARK: i32 = 0x7FFF_FFFD;
 pub type Vector3 = mint::Vector3<f32>;
 pub type Quaternion = mint::Quaternion<f32>;
 
-#[derive(Debug, Clone, Default, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct GameObject {
     pub name: String,
     pub guid: u32,
@@ -111,6 +112,26 @@ pub struct Color {
 impl Color {
     pub fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
         Color { r, g, b, a }
+    }
+}
+
+#[derive(
+    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+)]
+pub enum MedalStatus {
+    None = 0,
+    DidNotFinish = 1,
+    Completed = 2,
+    Bronze = 3,
+    Silver = 4,
+    Gold = 5,
+    Diamond = 6,
+    Count = 7,
+}
+
+impl Default for MedalStatus {
+    fn default() -> Self {
+        MedalStatus::None
     }
 }
 

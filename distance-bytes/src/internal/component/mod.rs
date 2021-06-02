@@ -5,6 +5,7 @@ pub use custom_name::CustomName;
 pub use golden_simples::{GoldenSimples, GoldenSimplesPresets};
 pub use group::{Group, GroupInspectChildrenType};
 pub use mesh_renderer::MeshRenderer;
+pub use profile_progress::ProfileProgress;
 pub use profile_stats::ProfileStats;
 pub use sphere_collider::SphereCollider;
 pub use track_link::TrackLink;
@@ -26,6 +27,7 @@ mod custom_name;
 mod golden_simples;
 mod group;
 mod mesh_renderer;
+mod profile_progress;
 mod profile_stats;
 mod sphere_collider;
 mod track_link;
@@ -34,7 +36,7 @@ mod z_event_listener;
 mod z_event_trigger;
 
 // TODO: Handle components that have a name string instead of id and version.
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Component {
     pub version: i32,
     pub guid: u32,
@@ -164,7 +166,7 @@ impl Component {
             ComponentId::HideOnVirusSpiritEvent => builder.raw(ComponentData::HideOnVirusSpiritEvent),
             ComponentId::TrackAttachment => builder.raw(ComponentData::TrackAttachment),
             ComponentId::LevelPlaylist => builder.raw(ComponentData::LevelPlaylist),
-            ComponentId::ProfileProgress => builder.raw(ComponentData::ProfileProgress),
+            ComponentId::ProfileProgress => builder.implemented(ComponentData::ProfileProgress, ProfileProgress::VERSION),
             ComponentId::GeneralSettings => builder.raw(ComponentData::GeneralSettings),
             ComponentId::ReplayAllPurposeTrigger => unserializable(),
             ComponentId::WorkshopPublishedFileInfos => builder.raw(ComponentData::WorkshopPublishedFileInfos),
@@ -747,7 +749,7 @@ impl From<ComponentId> for i32 {
 }
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ComponentData {
     Transform(Transform),
     MeshRenderer(MeshRenderer),
@@ -828,7 +830,7 @@ pub enum ComponentData {
     HideOnVirusSpiritEvent(RawComponentData),
     TrackAttachment(RawComponentData),
     LevelPlaylist(RawComponentData),
-    ProfileProgress(RawComponentData),
+    ProfileProgress(ProfileProgress),
     GeneralSettings(RawComponentData),
     WorkshopPublishedFileInfos(RawComponentData),
     WarpAnchor(RawComponentData),
@@ -1200,7 +1202,7 @@ impl ComponentData {
             ComponentData::HideOnVirusSpiritEvent(data) => dispatcher.raw(data),
             ComponentData::TrackAttachment(data) => dispatcher.raw(data),
             ComponentData::LevelPlaylist(data) => dispatcher.raw(data),
-            ComponentData::ProfileProgress(data) => dispatcher.raw(data),
+            ComponentData::ProfileProgress(data) => dispatcher.implemented(data),
             ComponentData::GeneralSettings(data) => dispatcher.raw(data),
             ComponentData::WorkshopPublishedFileInfos(data) => dispatcher.raw(data),
             ComponentData::WarpAnchor(data) => dispatcher.raw(data),

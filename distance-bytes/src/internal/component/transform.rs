@@ -6,7 +6,7 @@ use crate::GameObject;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transform {
     pub position: Vector3,
     pub rotation: Quaternion,
