@@ -4,6 +4,7 @@ pub use capsule_collider::CapsuleCollider;
 pub use custom_name::CustomName;
 pub use golden_simples::{GoldenSimples, GoldenSimplesPresets};
 pub use group::{Group, GroupInspectChildrenType};
+pub use level_infos::LevelInfos;
 pub use mesh_renderer::MeshRenderer;
 pub use profile_progress::ProfileProgress;
 pub use profile_stats::ProfileStats;
@@ -26,6 +27,7 @@ mod capsule_collider;
 mod custom_name;
 mod golden_simples;
 mod group;
+mod level_infos;
 mod mesh_renderer;
 mod profile_progress;
 mod profile_stats;
@@ -210,7 +212,7 @@ impl Component {
             ComponentId::HoverScreenSpecialObjectTrigger => builder.raw(ComponentData::HoverScreenSpecialObjectTrigger),
             ComponentId::ReplaySettings => builder.raw(ComponentData::ReplaySettings),
             ComponentId::CutsceneCamForTrailer => builder.raw(ComponentData::CutsceneCamForTrailer),
-            ComponentId::LevelInfos => builder.raw(ComponentData::LevelInfos),
+            ComponentId::LevelInfos => builder.implemented(ComponentData::LevelInfos, LevelInfos::VERSION),
             ComponentId::AchievementTrigger => builder.raw(ComponentData::AchievementTrigger),
             ComponentId::ArenaCarSpawner => builder.raw(ComponentData::ArenaCarSpawner),
             ComponentId::Animated => builder.implemented(ComponentData::Animated, Animated::VERSION),
@@ -868,7 +870,7 @@ pub enum ComponentData {
     HoverScreenSpecialObjectTrigger(RawComponentData),
     ReplaySettings(RawComponentData),
     CutsceneCamForTrailer(RawComponentData),
-    LevelInfos(RawComponentData),
+    LevelInfos(LevelInfos),
     AchievementTrigger(RawComponentData),
     ArenaCarSpawner(RawComponentData),
     Animated(Animated),
@@ -1239,7 +1241,7 @@ impl ComponentData {
             ComponentData::HoverScreenSpecialObjectTrigger(data) => dispatcher.raw(data),
             ComponentData::ReplaySettings(data) => dispatcher.raw(data),
             ComponentData::CutsceneCamForTrailer(data) => dispatcher.raw(data),
-            ComponentData::LevelInfos(data) => dispatcher.raw(data),
+            ComponentData::LevelInfos(data) => dispatcher.implemented(data),
             ComponentData::AchievementTrigger(data) => dispatcher.raw(data),
             ComponentData::ArenaCarSpawner(data) => dispatcher.raw(data),
             ComponentData::Animated(data) => dispatcher.implemented(data),

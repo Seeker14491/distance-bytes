@@ -3,9 +3,12 @@ use crate::internal::{
     string, util, Component, GameObject, Quaternion, Serializable, Vector3, VisitDirection,
     Visitor, EMPTY_MARK, INVALID_FLOAT, INVALID_INT, INVALID_QUATERNION, INVALID_VECTOR_3,
 };
+use crate::DistanceDateTime;
 use anyhow::Result;
 use byteorder::{WriteBytesExt, LE};
+use std::collections::HashMap;
 use std::convert::TryInto;
+use std::hash::Hash;
 use std::io::{Seek, SeekFrom, Write};
 use util::ApproximatelyEquals;
 
@@ -125,6 +128,13 @@ impl<W: Write + Seek> Serializer<W> {
 
         Ok(())
     }
+
+    fn write_dictionary_start(&mut self, _name: &str, len: i32) -> Result<()> {
+        self.writer.write_i32::<LE>(12121212)?;
+        self.writer.write_i32::<LE>(len)?;
+
+        Ok(())
+    }
 }
 
 impl<W: Write + Seek> Visitor for Serializer<W> {
@@ -201,6 +211,16 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         Ok(())
     }
 
+    fn visit_datetime(&mut self, _name: &str, value: &mut DistanceDateTime) -> Result<()> {
+        if value.0 as i32 != INVALID_INT {
+            self.writer.write_i64::<LE>(value.0)?;
+        } else {
+            self.write_empty()?;
+        }
+
+        Ok(())
+    }
+
     fn visit_vector_3(&mut self, _name: &str, value: &mut Vector3) -> Result<()> {
         if !value.approximately_equals(&INVALID_VECTOR_3) {
             self.writer.write_f32::<LE>(value.x)?;
@@ -259,6 +279,34 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         self.write_array_start("Ints", array.len().try_into()?)?;
         for element in array {
             visit_t_fn(self, element)?;
+        }
+
+        Ok(())
+    }
+
+    fn visit_dictionary_generic<Key, Value, KeyAcceptor, ValueAcceptor>(
+        &mut self,
+        name: &str,
+        value: &mut Option<HashMap<Key, Value>>,
+        mut key_acceptor: KeyAcceptor,
+        mut value_acceptor: ValueAcceptor,
+        _default_key: Key,
+        _default_value: Value,
+    ) -> Result<()>
+    where
+        Key: Clone + Hash + Eq,
+        Value: Clone,
+        KeyAcceptor: FnMut(&mut Self, &mut Key) -> Result<()>,
+        ValueAcceptor: FnMut(&mut Self, &mut Value) -> Result<()>,
+    {
+        if let Some(dictionary) = value {
+            self.write_dictionary_start(name, dictionary.len().try_into()?)?;
+            for (key, value) in dictionary {
+                key_acceptor(self, &mut key.clone())?;
+                value_acceptor(self, value)?;
+            }
+        } else {
+            self.write_empty()?;
         }
 
         Ok(())

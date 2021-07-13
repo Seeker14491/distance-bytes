@@ -3,14 +3,17 @@ use crate::internal::{
     string, util, ComponentId, GameObject, Quaternion, Serializable, Vector3, VisitDirection,
     Visitor, EMPTY_MARK,
 };
+use crate::DistanceDateTime;
 use anyhow::Result;
 use byteorder::{ReadBytesExt, LE};
 use num_traits::FromPrimitive;
 use paste::paste;
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{Display, Formatter};
+use std::hash::Hash;
 use std::io::{Read, Seek, SeekFrom};
 use std::{fmt, io, mem};
 use tracing::{debug, warn};
@@ -295,6 +298,20 @@ impl<R: Read + Seek> Deserializer<R> {
 
         Ok(len)
     }
+
+    fn read_dictionary_start(&mut self) -> Result<i32> {
+        let mut mark = 0;
+        self.read_set_i32("dictionaryMark", &mut mark)?;
+
+        let mut len = -1;
+        if mark == 12121212 {
+            self.read_set_i32("dictionarySize", &mut len)?;
+        } else {
+            warn!("expected dictionary mark `12121212` when reading the start of the dictionary; found {} instead", mark);
+        }
+
+        Ok(len)
+    }
 }
 
 impl<R: Read + Seek> Visitor for Deserializer<R> {
@@ -362,6 +379,14 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
+    fn visit_datetime(&mut self, name: &str, value: &mut DistanceDateTime) -> Result<()> {
+        if !self.empty_marker()? {
+            self.read_set_i64(name, &mut value.0)?;
+        }
+
+        Ok(())
+    }
+
     fn visit_vector_3(&mut self, _name: &str, value: &mut Vector3) -> Result<()> {
         if !self.empty_marker()? {
             self.read_set_f32("x", &mut value.x)?;
@@ -423,6 +448,45 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
             for element in array {
                 visit_t_fn(self, element)?;
             }
+        }
+
+        Ok(())
+    }
+
+    fn visit_dictionary_generic<Key, Value, KeyAcceptor, ValueAcceptor>(
+        &mut self,
+        _name: &str,
+        value: &mut Option<HashMap<Key, Value>>,
+        mut key_acceptor: KeyAcceptor,
+        mut value_acceptor: ValueAcceptor,
+        default_key: Key,
+        default_value: Value,
+    ) -> Result<()>
+    where
+        Key: Clone + Hash + Eq,
+        Value: Clone,
+        KeyAcceptor: FnMut(&mut Self, &mut Key) -> Result<()>,
+        ValueAcceptor: FnMut(&mut Self, &mut Value) -> Result<()>,
+    {
+        let len = self.read_dictionary_start()?;
+
+        let dictionary = match value {
+            Some(x) => x,
+            None => {
+                *value = Some(HashMap::with_capacity(len.try_into().unwrap_or(0)));
+                value.as_mut().unwrap()
+            }
+        };
+        dictionary.clear();
+
+        for _ in 0..len {
+            let mut key = default_key.clone();
+            key_acceptor(self, &mut key)?;
+
+            let mut value = default_value.clone();
+            value_acceptor(self, &mut value)?;
+
+            dictionary.insert(key, value);
         }
 
         Ok(())
