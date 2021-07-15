@@ -1,5 +1,5 @@
 use crate::internal::{Serializable, VisitDirection, Visitor};
-use crate::MedalStatus;
+use crate::{Enum, MedalStatus};
 use anyhow::{format_err, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -156,7 +156,7 @@ impl Serializable for ProfileProgress {
 pub struct LevelProgress {
     pub last_played_level_version: Option<String>,
     pub prompted_to_vote_on_level: bool,
-    pub medals: Vec<MedalStatus>,
+    pub medals: Vec<Enum<MedalStatus>>,
     pub top_results: Vec<i32>,
     pub time_last_played: i64,
 }
@@ -184,7 +184,7 @@ impl LevelProgress {
         }
 
         if V::VISIT_DIRECTION == VisitDirection::In {
-            self.medals.resize(17, MedalStatus::None);
+            self.medals.resize(17, MedalStatus::None.into());
             self.top_results.resize(17, -1);
         }
 

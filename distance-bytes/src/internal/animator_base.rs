@@ -1,6 +1,7 @@
 use crate::internal::{VisitDirection, Visitor};
+use crate::Enum;
 use anyhow::Result;
-use enum_primitive_derive::Primitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -10,17 +11,17 @@ pub struct AnimatorBase {
     pub time_offset: f32,
     pub loop_: bool,
     pub extend: bool,
-    pub curve_type: AnimatorBaseCurveType,
+    pub curve_type: Enum<AnimatorBaseCurveType>,
     pub editor_animation_t: f32,
     pub custom_pong_values: bool,
     pub pong_delay: f32,
     pub pong_duration: f32,
-    pub pong_curve_type: AnimatorBaseCurveType,
-    pub default_action: AnimatorBaseTriggerAction,
-    pub on_action: AnimatorBaseTriggerAction,
+    pub pong_curve_type: Enum<AnimatorBaseCurveType>,
+    pub default_action: Enum<AnimatorBaseTriggerAction>,
+    pub on_action: Enum<AnimatorBaseTriggerAction>,
     pub on_wait_for_animation_finish: bool,
     pub on_reset: bool,
-    pub off_action: AnimatorBaseTriggerAction,
+    pub off_action: Enum<AnimatorBaseTriggerAction>,
     pub off_wait_for_animation_finish: bool,
     pub off_reset: bool,
 }
@@ -42,7 +43,7 @@ impl AnimatorBase {
         if V::VISIT_DIRECTION == VisitDirection::In && !self.custom_pong_values {
             self.pong_delay = self.delay;
             self.pong_duration = self.duration;
-            self.pong_curve_type = self.curve_type.opposite();
+            self.pong_curve_type = self.curve_type.map(AnimatorBaseCurveType::opposite);
         }
 
         Ok(())
@@ -58,9 +59,10 @@ impl AnimatorBase {
         visitor.visit_f32("timeOffset_", &mut self.time_offset)?;
         visitor.visit_bool("loop_", &mut self.loop_)?;
 
-        let mut extrapolation_type = AnimatorBaseExtrapolationTypeObsolete::PingPong;
+        let mut extrapolation_type = AnimatorBaseExtrapolationTypeObsolete::PingPong.into();
         visitor.visit_enum("extrapolationType_", &mut extrapolation_type)?;
-        self.extend = extrapolation_type == AnimatorBaseExtrapolationTypeObsolete::Extend;
+        self.extend =
+            extrapolation_type.variant() == Some(AnimatorBaseExtrapolationTypeObsolete::Extend);
 
         visitor.visit_enum("curveType_", &mut self.curve_type)?;
         if old_animation_t {
@@ -78,14 +80,14 @@ impl AnimatorBase {
         visitor.visit_f32("pongDuration_", &mut self.pong_duration)?;
         visitor.visit_enum("pongCurveType_", &mut self.pong_curve_type)?;
 
-        self.pong_curve_type = self.pong_curve_type.opposite();
+        self.pong_curve_type = self.pong_curve_type.map(AnimatorBaseCurveType::opposite);
         if !self.custom_pong_values {
             self.pong_delay = self.delay;
             self.pong_duration = self.duration;
-            self.pong_curve_type = self.curve_type.opposite();
+            self.pong_curve_type = self.curve_type.map(AnimatorBaseCurveType::opposite);
         }
 
-        Ok(extrapolation_type == AnimatorBaseExtrapolationTypeObsolete::PingPong)
+        Ok(extrapolation_type.variant() == Some(AnimatorBaseExtrapolationTypeObsolete::PingPong))
     }
 
     pub(crate) fn visit_trigger<V: Visitor>(&mut self, mut visitor: V) -> Result<()> {
@@ -114,23 +116,23 @@ impl AnimatorBase {
         }
 
         let mut flag = false;
-        if let AnimatorBaseTriggerAction::Play | AnimatorBaseTriggerAction::PlayReverse =
-            self.on_action
+        if let Some(AnimatorBaseTriggerAction::Play)
+        | Some(AnimatorBaseTriggerAction::PlayReverse) = self.on_action.variant()
         {
-            self.on_action = AnimatorBaseTriggerAction::PingPong;
+            self.on_action = AnimatorBaseTriggerAction::PingPong.into();
             flag = true;
         }
-        if let AnimatorBaseTriggerAction::Play | AnimatorBaseTriggerAction::PlayReverse =
-            self.off_action
+        if let Some(AnimatorBaseTriggerAction::Play)
+        | Some(AnimatorBaseTriggerAction::PlayReverse) = self.off_action.variant()
         {
-            self.off_action = AnimatorBaseTriggerAction::PingPong;
+            self.off_action = AnimatorBaseTriggerAction::PingPong.into();
             flag = true;
         }
         if !flag
-            || self.default_action == AnimatorBaseTriggerAction::Play
-            || self.default_action == AnimatorBaseTriggerAction::PlayReverse
+            || self.default_action == AnimatorBaseTriggerAction::Play.into()
+            || self.default_action == AnimatorBaseTriggerAction::PlayReverse.into()
         {
-            self.default_action = AnimatorBaseTriggerAction::PingPong;
+            self.default_action = AnimatorBaseTriggerAction::PingPong.into();
         }
     }
 }
@@ -149,7 +151,7 @@ impl Default for AnimatorBase {
             pong_delay: 1.0,
             pong_duration: 1.0,
             pong_curve_type: Default::default(),
-            default_action: AnimatorBaseTriggerAction::PingPong,
+            default_action: AnimatorBaseTriggerAction::PingPong.into(),
             on_action: Default::default(),
             on_wait_for_animation_finish: false,
             on_reset: false,
@@ -161,8 +163,20 @@ impl Default for AnimatorBase {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum AnimatorBaseCurveType {
     Linear = 0,
     EaseIn = 1,
@@ -192,8 +206,20 @@ impl Default for AnimatorBaseCurveType {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum AnimatorBaseTriggerAction {
     None = 0,
     Play = 1,
@@ -209,8 +235,20 @@ impl Default for AnimatorBaseTriggerAction {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum AnimatorBaseExtrapolationTypeObsolete {
     Normal = 0,
     PingPong = 1,

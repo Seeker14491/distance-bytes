@@ -1,13 +1,14 @@
 use crate::internal::{Serializable, Vector3, Visitor, ONES_VECTOR_3, ZEROS_VECTOR_3};
+use crate::Enum;
 use anyhow::Result;
-use enum_primitive_derive::Primitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct GoldenSimples {
     pub image_index: i32,
     pub emit_index: i32,
-    pub preset: GoldenSimplesPresets,
+    pub preset: Enum<GoldenSimplesPresets>,
     pub texture_scale: Vector3,
     pub texture_offset: Vector3,
     pub flip_texture_uv: bool,
@@ -85,7 +86,7 @@ impl Serializable for GoldenSimples {
         if version >= 1 {
             visitor.visit_enum("Preset", &mut self.preset)?;
         } else {
-            self.preset = GoldenSimplesPresets::Custom;
+            self.preset = GoldenSimplesPresets::Custom.into();
         }
 
         visitor.visit_vector_3("textureScale", &mut self.texture_scale)?;
@@ -115,8 +116,20 @@ impl Serializable for GoldenSimples {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Primitive, Serialize, Deserialize,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum GoldenSimplesPresets {
     Custom = 0,
     Solid = 1,

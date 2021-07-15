@@ -6,7 +6,6 @@ use crate::internal::{
 use crate::DistanceDateTime;
 use anyhow::Result;
 use byteorder::{ReadBytesExt, LE};
-use num_traits::FromPrimitive;
 use paste::paste;
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -86,7 +85,7 @@ impl<R: Read + Seek> Deserializer<R> {
             33333333 | 22222222 | 32323232 => {
                 let mut raw_id = 0;
                 self.read_set_i32("componentID", &mut raw_id)?;
-                if let Some(id_2) = ComponentId::from_i32(raw_id) {
+                if let Ok(id_2) = ComponentId::try_from(raw_id) {
                     component_id = id_2;
                 } else {
                     warn!(id = raw_id, "unknown componentID");

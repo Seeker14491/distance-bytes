@@ -16,8 +16,7 @@ pub use z_event_trigger::ZEventTrigger;
 
 use crate::internal::Serializable;
 use anyhow::{format_err, Result};
-use enum_primitive_derive::Primitive;
-use num_traits::ToPrimitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use std::any::TypeId;
 
@@ -283,12 +282,23 @@ impl Component {
 }
 
 #[allow(clippy::upper_case_acronyms)]
-#[repr(i16)]
+#[repr(i32)]
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Primitive, Serialize, Deserialize,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
 pub enum ComponentId {
-    Invalid_ = -1_i16,
+    Invalid_ = -1,
     None = 0,
     Transform = 1,
     MeshFilter = 2,
@@ -741,12 +751,6 @@ impl ComponentId {
 impl Default for ComponentId {
     fn default() -> Self {
         ComponentId::None
-    }
-}
-
-impl From<ComponentId> for i32 {
-    fn from(id: ComponentId) -> Self {
-        id.to_i32().unwrap()
     }
 }
 

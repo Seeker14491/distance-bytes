@@ -1,5 +1,5 @@
 use crate::internal::{Serializable, Visitor};
-use crate::{DistanceDateTime, LevelDifficulty, LevelType, MusicCueId};
+use crate::{DistanceDateTime, Enum, LevelDifficulty, LevelType, MusicCueId};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -25,10 +25,10 @@ pub struct LevelInfo {
     disable_jumping: bool,
     disable_boosting: bool,
     disable_jet_rotating: bool,
-    difficulty: LevelDifficulty,
-    level_type: LevelType,
+    difficulty: Enum<LevelDifficulty>,
+    level_type: Enum<LevelType>,
     workshop_creator_id: u64,
-    music_cue_id: MusicCueId,
+    music_cue_id: Enum<MusicCueId>,
     description: Option<String>,
     creator_name: Option<String>,
 }

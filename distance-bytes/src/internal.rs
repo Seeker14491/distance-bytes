@@ -4,10 +4,11 @@ use anyhow::Result;
 use auto_impl::auto_impl;
 use chrono::TimeZone;
 use component::Component;
-use enum_primitive_derive::Primitive;
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::convert::TryFrom;
+use std::fmt::Debug;
 use std::fs::File;
 use std::hash::Hash;
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
@@ -62,6 +63,8 @@ pub(crate) const INVALID_QUATERNION: Quaternion = Quaternion {
 };
 
 pub(crate) const EMPTY_MARK: i32 = 0x7FFF_FFFD;
+
+pub type Enum<T> = vast_enum::VastEnum<T, i32>;
 
 pub type Vector3 = mint::Vector3<f32>;
 pub type Quaternion = mint::Quaternion<f32>;
@@ -120,8 +123,20 @@ impl Color {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum MedalStatus {
     None = 0,
     DidNotFinish = 1,
@@ -182,8 +197,20 @@ impl DistanceDateTime {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum LevelDifficulty {
     Casual = 0,
     Normal = 1,
@@ -200,8 +227,20 @@ impl Default for LevelDifficulty {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum LevelType {
     None = 0,
     Example = 1,
@@ -221,8 +260,20 @@ impl Default for LevelType {
 
 #[allow(non_camel_case_types)]
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum MusicCueId {
     None = 0,
     Grime = 1,
@@ -422,19 +473,11 @@ where
 
     fn visit_children(&mut self, value: &mut Vec<GameObject>) -> Result<()>;
 
-    fn visit_enum<T: FromPrimitive + ToPrimitive>(
-        &mut self,
-        name: &str,
-        value: &mut T,
-    ) -> Result<()> {
-        let mut n = value.to_i32().unwrap();
-        self.visit_i32(name, &mut n)?;
-
-        if Self::VISIT_DIRECTION == VisitDirection::In {
-            *value = T::from_i32(n).unwrap();
-        }
-
-        Ok(())
+    fn visit_enum<T>(&mut self, name: &str, value: &mut Enum<T>) -> Result<()>
+    where
+        T: Into<i32> + TryFrom<i32>,
+    {
+        self.visit_i32(name, value.int_mut())
     }
 
     fn visit_serial_collider_deprecated(&mut self, _name: &str) -> Result<()> {

@@ -1,6 +1,7 @@
 use crate::internal::{Serializable, Visitor};
+use crate::Enum;
 use anyhow::Result;
-use enum_primitive_derive::Primitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
@@ -8,7 +9,7 @@ pub struct Group {
     /// References to `TrackLink` components
     pub links: Vec<u32>,
 
-    pub inspect_children: GroupInspectChildrenType,
+    pub inspect_children: Enum<GroupInspectChildrenType>,
 }
 
 impl Serializable for Group {
@@ -26,8 +27,20 @@ impl Serializable for Group {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum GroupInspectChildrenType {
     None = 0,
     Combined = 1,

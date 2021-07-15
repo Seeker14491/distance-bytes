@@ -1,20 +1,20 @@
 use crate::internal::{Serializable, Visitor};
-use crate::{AnimatorBase, Vector3, ZEROS_VECTOR_3};
+use crate::{AnimatorBase, Enum, Vector3, ZEROS_VECTOR_3};
 use anyhow::Result;
-use enum_primitive_derive::Primitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Animated {
     pub base: AnimatorBase,
-    pub motion: AnimatedMotionType,
+    pub motion: Enum<AnimatedMotionType>,
     pub scale: bool,
     pub scale_exponent: Vector3,
     pub rotate: bool,
     pub rotate_axis: Vector3,
     pub center_point: Vector3,
     pub rotate_magnitude: f32,
-    pub translate_type: AnimatedTranslateType,
+    pub translate_type: Enum<AnimatedTranslateType>,
     pub translate_vector: Vector3,
     pub follow_distance: f32,
     pub follow_percent_of_track: bool,
@@ -93,14 +93,15 @@ impl Serializable for Animated {
             self.translate_type = match translate {
                 true => AnimatedTranslateType::Local,
                 false => AnimatedTranslateType::None,
-            };
+            }
+            .into();
 
             visitor.visit_vector_3("translateVector_", &mut self.translate_vector)?;
             if version >= 2 {
                 let mut move_along_track = false;
                 visitor.visit_bool("moveAlongTrack_", &mut move_along_track)?;
                 if move_along_track {
-                    self.translate_type = AnimatedTranslateType::FollowTrack;
+                    self.translate_type = AnimatedTranslateType::FollowTrack.into();
                 }
 
                 visitor.visit_f32("moveDistance_", &mut self.follow_distance)?;
@@ -157,8 +158,20 @@ impl Serializable for Animated {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum AnimatedMotionType {
     Spinning = 0,
     Sliding = 1,
@@ -175,8 +188,20 @@ impl Default for AnimatedMotionType {
 }
 
 #[derive(
-    Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, Primitive,
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+    IntoPrimitive,
+    TryFromPrimitive,
 )]
+#[repr(i32)]
 pub enum AnimatedTranslateType {
     None = 0,
     Local = 1,
