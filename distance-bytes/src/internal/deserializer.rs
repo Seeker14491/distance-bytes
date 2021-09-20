@@ -158,6 +158,7 @@ impl<R: Read + Seek> Deserializer<R> {
         let mut buf = [0_u8; 4];
         if let Err(e) = self.reader.read_exact(&mut buf) {
             return if e.kind() == io::ErrorKind::UnexpectedEof {
+                self.reader.seek(SeekFrom::Current(-(MARK_SIZE as i64)))?;
                 Ok(false)
             } else {
                 Err(e.into())
