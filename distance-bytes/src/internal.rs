@@ -86,7 +86,7 @@ impl GameObject {
         deserializer::read_game_object(&mut file)
     }
 
-    pub fn write_to_reader(&mut self, writer: impl Write + Seek) -> Result<()> {
+    pub fn write_to_writer(&mut self, writer: impl Write + Seek) -> Result<()> {
         serializer::write_game_object(writer, self)
     }
 
