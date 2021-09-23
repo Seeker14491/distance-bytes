@@ -31,6 +31,9 @@ impl Serializable for TrackLink {
             2 => {
                 visitor.visit_reference("SegRef", &mut self.parent)?;
                 visitor.visit_reference("LinkRef", &mut self.link)?;
+
+                visitor.visit_u32("ManipulatorNodeID", &mut self.manipulator_node)?;
+
                 visitor.visit_bool(
                     "ManipulatorNodeShouldBeCreated",
                     &mut self.owned_node_between_connected_links,
