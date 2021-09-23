@@ -155,10 +155,11 @@ impl<R: Read + Seek> Deserializer<R> {
     fn empty_marker(&mut self) -> Result<bool> {
         const MARK_SIZE: usize = mem::size_of::<i32>();
 
+        let pre_read_position = self.reader.stream_position()?;
         let mut buf = [0_u8; 4];
         if let Err(e) = self.reader.read_exact(&mut buf) {
             return if e.kind() == io::ErrorKind::UnexpectedEof {
-                self.reader.seek(SeekFrom::Current(-(MARK_SIZE as i64)))?;
+                self.reader.seek(SeekFrom::Start(pre_read_position))?;
                 Ok(false)
             } else {
                 Err(e.into())
