@@ -1,3 +1,5 @@
+name: Merge dev branch
+
 on:
   push:
     branches:
@@ -8,14 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: repo-sync/pull-request@v2
-        id: open-pr
+
+      - name: Create Pull Request
+        uses: repo-sync/pull-request@v2
         with:
           destination_branch: master
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: peter-evans/enable-pull-request-automerge@v1
-        if: ${{ steps.open-pr.outputs.pr_number != null }}
+
+      - name: Wait for checks
+        uses: lewagon/wait-on-check-action@v1.0.0
         with:
-          token: ${{ secrets.PAT }}
-          pull-request-number: ${{ steps.open-pr.outputs.pr_number }}
-          merge-method: rebase
+          ref: dev
+          running-workflow-name: pull-request
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+
+      # Workaround for permissions issue when running the following job
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Fast Forward Merge
+        uses: MaximeHeckel/github-action-merge-fast-forward@v1.1.0
+        with:
+          branchtomerge: dev
+          branch: master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
