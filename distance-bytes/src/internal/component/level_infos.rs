@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct LevelInfos(Vec<LevelInfo>);
+pub struct LevelInfos(pub Vec<LevelInfo>);
 
 impl Serializable for LevelInfos {
     const VERSION: i32 = 0;
