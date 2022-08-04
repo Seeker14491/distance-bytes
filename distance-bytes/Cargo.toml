@@ -6,11 +6,11 @@ edition = "2018"
 
 [dev-dependencies]
 insta = "1"
-pretty-hex = "0.2"
+pretty-hex = "0.3"
 
 [dependencies]
 anyhow = "1"
-auto_impl = "0.4"
+auto_impl = "1"
 byteorder = "1"
 chrono = "0.4"
 epochs = "0.2"
@@ -20,4 +20,4 @@ paste = "1"
 serde = { version = "1", features = ["derive"] }
 tracing = "0.1"
 vast-enum = { git = "https://github.com/Seeker14491/vast-enum.git", features = ["serde"] }
-widestring = "0.4"
+widestring = "1"

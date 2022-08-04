@@ -6,11 +6,10 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1"
-clap = "2"
+clap = { version = "3", features = ["derive"] }
 color-backtrace = "0.5"
 distance-bytes = { path = "../distance-bytes" }
 serde_json = "1"
-serde_yaml = "0.8"
-structopt = "0.3"
+serde_yaml = "0.9"
 tracing = "0.1"
-tracing-subscriber = "0.2"
+tracing-subscriber = "0.3"
