@@ -330,6 +330,14 @@ impl<R: Read + Seek> Visitor for Deserializer<R> {
         Ok(())
     }
 
+    fn visit_u8(&mut self, name: &str, value: &mut u8) -> Result<()> {
+        if !self.empty_marker()? {
+            self.read_set_u8(name, value)?;
+        }
+
+        Ok(())
+    }
+
     fn visit_i32(&mut self, name: &str, value: &mut i32) -> Result<()> {
         if !self.empty_marker()? {
             self.read_set_i32(name, value)?;

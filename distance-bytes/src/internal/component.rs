@@ -1,6 +1,7 @@
 pub use animated::{Animated, AnimatedMotionType, AnimatedTranslateType};
 pub use box_collider::BoxCollider;
 pub use capsule_collider::CapsuleCollider;
+pub use car_replay_data::CarReplayData;
 pub use custom_name::CustomName;
 pub use golden_simples::{GoldenSimples, GoldenSimplesPresets};
 pub use group::{Group, GroupInspectChildrenType};
@@ -23,6 +24,7 @@ use std::any::TypeId;
 mod animated;
 mod box_collider;
 mod capsule_collider;
+mod car_replay_data;
 mod custom_name;
 mod golden_simples;
 mod group;
@@ -188,7 +190,7 @@ impl Component {
             ComponentId::RotateLogicTriggerListener => unserializable(),
             ComponentId::ScaleLogicTriggerListener => unserializable(),
             ComponentId::VirusSpiritWarpTeaserLogic => builder.raw(ComponentData::VirusSpiritWarpTeaserLogic),
-            ComponentId::CarReplayData => builder.raw(ComponentData::CarReplayData),
+            ComponentId::CarReplayData => builder.implemented(ComponentData::CarReplayData, CarReplayData::VERSION),
             ComponentId::LevelImageCamera => builder.raw(ComponentData::LevelImageCamera),
             ComponentId::ParticlesGPU => builder.raw(ComponentData::ParticlesGPU),
             ComponentId::KillGridBox => builder.raw(ComponentData::KillGridBox),
@@ -850,7 +852,7 @@ pub enum ComponentData {
     Biodome(RawComponentData),
     TunnelHorrorLogic(RawComponentData),
     VirusSpiritWarpTeaserLogic(RawComponentData),
-    CarReplayData(RawComponentData),
+    CarReplayData(CarReplayData),
     LevelImageCamera(RawComponentData),
     ParticlesGPU(RawComponentData),
     KillGridBox(RawComponentData),
@@ -1222,7 +1224,7 @@ impl ComponentData {
             ComponentData::Biodome(data) => dispatcher.raw(data),
             ComponentData::TunnelHorrorLogic(data) => dispatcher.raw(data),
             ComponentData::VirusSpiritWarpTeaserLogic(data) => dispatcher.raw(data),
-            ComponentData::CarReplayData(data) => dispatcher.raw(data),
+            ComponentData::CarReplayData(data) => dispatcher.implemented(data),
             ComponentData::LevelImageCamera(data) => dispatcher.raw(data),
             ComponentData::ParticlesGPU(data) => dispatcher.raw(data),
             ComponentData::KillGridBox(data) => dispatcher.raw(data),

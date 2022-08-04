@@ -148,6 +148,12 @@ impl<W: Write + Seek> Visitor for Serializer<W> {
         Ok(())
     }
 
+    fn visit_u8(&mut self, _name: &str, value: &mut u8) -> Result<()> {
+        self.writer.write_u8(*value)?;
+
+        Ok(())
+    }
+
     fn visit_i32(&mut self, _name: &str, value: &mut i32) -> Result<()> {
         if *value != INVALID_INT {
             self.writer.write_i32::<LE>(*value)?;

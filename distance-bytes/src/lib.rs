@@ -7,6 +7,8 @@
 )]
 
 pub use crate::internal::animator_base::*;
+pub use crate::internal::car_colors::*;
+pub use crate::internal::car_data::*;
 pub use crate::internal::component::{Component, ComponentData, RawComponentData};
 pub use crate::internal::level_info::*;
 pub use crate::internal::player_stats::*;
