@@ -1,19 +1,16 @@
-use clap::arg_enum;
-use structopt::StructOpt;
+use clap::Parser;
 
-arg_enum! {
-    #[derive(Debug)]
-    pub enum OutputFormat {
-        Json,
-        Yaml,
-        Bytes,
-    }
+#[derive(Parser, Debug)]
+pub struct Opt {
+    #[clap(long, value_enum, case_insensitive = true)]
+    pub format: OutputFormat,
 }
 
-#[derive(Debug, StructOpt)]
-pub struct Opt {
-    #[structopt(long, possible_values = &OutputFormat::variants(), case_insensitive = true)]
-    pub format: OutputFormat,
+#[derive(clap::ValueEnum, Debug, Clone)]
+pub enum OutputFormat {
+    Json,
+    Yaml,
+    Bytes,
 }
 
 pub fn get() -> Opt {
