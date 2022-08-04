@@ -15,6 +15,8 @@ use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::path::Path;
 
 pub(crate) mod animator_base;
+pub(crate) mod car_colors;
+pub(crate) mod car_data;
 pub(crate) mod component;
 pub(crate) mod deserializer;
 pub(crate) mod level_info;
@@ -381,6 +383,7 @@ where
     const VISIT_DIRECTION: VisitDirection;
 
     fn visit_bool(&mut self, name: &str, value: &mut bool) -> Result<()>;
+    fn visit_u8(&mut self, name: &str, value: &mut u8) -> Result<()>;
     fn visit_i32(&mut self, name: &str, value: &mut i32) -> Result<()>;
     fn visit_u32(&mut self, name: &str, value: &mut u32) -> Result<()>;
     fn visit_i64(&mut self, name: &str, value: &mut i64) -> Result<()>;
