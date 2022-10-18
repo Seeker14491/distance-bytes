@@ -2,7 +2,7 @@ use clap::Parser;
 
 #[derive(Parser, Debug)]
 pub struct Opt {
-    #[clap(long, value_enum, case_insensitive = true)]
+    #[clap(long, value_enum, ignore_case = true)]
     pub format: OutputFormat,
 }
 
@@ -14,5 +14,5 @@ pub enum OutputFormat {
 }
 
 pub fn get() -> Opt {
-    Opt::from_args()
+    Opt::parse()
 }
