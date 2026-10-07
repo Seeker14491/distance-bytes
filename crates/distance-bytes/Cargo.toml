@@ -1,0 +1,8 @@
+[package]
+name = "distance-bytes"
+description = "Read and write the .bytes files of the game Distance"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]

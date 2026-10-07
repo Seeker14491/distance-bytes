@@ -1,0 +1,7 @@
+# Game files and dumps: copyrighted, never commit
+/game/
+/game_assets_dump/
+
+/target/
+bin/
+obj/
