@@ -109,10 +109,24 @@ BytesServer endpoint: go through the level prefabs and the added-component prefa
   - The writer recomputes end offsets. Levels with 6 bytes inserted before their reflection components now load in the game with 0 trace mismatches; before, two of them failed to load.
   - Level version 0 (no end offsets) is decoded by field type. The corpus has no v0 level with reflection components, so this is covered by unit tests only.
   - String lengths are now only accepted in their shortest 7-bit encoding, so typed values always write back identically.
-- **Next**: Phase 3. Port the hand-written components by size, starting with MeshRenderer v1/v2 (about 870 MB of the 1.18 GB of raw component bytes).
+- **Phase 3 (done)**:
+  - Every component with a hand-written `Visit` (96 types, 314 component versions) has a typed struct, translated from the decompiled C#. Most were drafted by a script and then checked by hand; the rest were written by hand. This includes the user-data components (replays, local leaderboards, level infos, profile progress and stats), so most of phase 5's binary files are covered.
+  - The `Visitor` handles values, arrays, dictionaries, byte arrays, references and counted lists of records. It also handles bodies that end early or carry extra bytes the way the game does (`BodyEnd`).
+  - The settings of level versions 0 and 1 (`LevelSettings.OldVisit`) are decoded as `LegacyLevelSettings`.
+  - Corpus: 10.7M bodies decoded, and the 15,002 bodies still raw (926 KB) are ones the game doesn't read:
+    - components the current game has no class for (CubeMapRenderer, GenerateCreditsNames, GlobalFogLogic, WorkshopPublishedFileInfos);
+    - BezierSplineTrack v2;
+    - one MeshFilter wrapper;
+    - one empty-field SetAbilitiesTrigger v0;
+    - six 5-byte GoldenSimples v0 bodies, which the game reads past.
+  - `trace-check` on the 2 smallest files for every decoded (component, version) pair (258 files) gives 0 mismatches and 0 load failures. All but a few bytes the game reads are decoded; the exception is the 8-byte `SetActiveOnMIDIEvent.GameObjs` generic values, an array count with no elements, which the game reads past and discards.
+  - Versions that no corpus file has (114 component versions, 7 legacy settings versions) are checked with `dbytes synth`, which writes a sample with every value set into a copy of a corpus file. All have 0 mismatches, and the game reads every value. Eight fail to load after the read because of the sample data: replays upgrade a garbage event buffer, and a TrackSegment v0 links to an object that isn't a TrackLink.
+  - A unit test round-trips that sample for every decoded version.
+- **Next**: Phase 4.
 
 ## Tooling notes
 
 - Decompile with `ilspycmd` 9.1.0.7988 (11.x fails to install on the .NET 9 SDK). Don't commit the decompiled source.
 - `game_assets_dump/Assets/Scripts` are stubs with fields only, no method bodies.
-- Python is not installed. Throwaway analysis scripts are in Rust.
+- Python is not installed. Throwaway analysis scripts are in Rust or Node.
+- A running `trace-check` keeps `target/release/dbytes.exe` open, so builds fail with "Access denied" until it ends. Run long checks from a copy of the binary.

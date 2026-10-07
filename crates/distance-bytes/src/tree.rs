@@ -1,11 +1,13 @@
 //! The structural tree of a `.bytes` file: levels, layers, game objects and components.
 //!
-//! Component bodies other than `Transform` and the game's generic field format are kept as raw
-//! bytes for now.
+//! Bodies that don't decode are kept as raw bytes.
 
 use std::cell::RefCell;
 
 use crate::component_id::ComponentId;
+use crate::components::ComponentData;
+use crate::legacy_settings::LegacyLevelSettings;
+use crate::visit::{BodyEnd, Visit};
 use crate::error::{ErrorKind, Result};
 use crate::fields::{Field, FieldFormat, read_fields, write_fields};
 use crate::io::{Reader, TraceEvent, Writer, mark};
@@ -58,16 +60,35 @@ pub struct Level {
     pub name: DString,
     /// The level file version, 0 to 4. The game writes version 4.
     pub version: i32,
-    pub settings: LevelSettings,
+    pub settings: LevelSettingsData,
     pub layers: Vec<Layer>,
 }
 
+/// A level's settings, which are stored differently in old levels. The typed settings are
+/// [`components::LevelSettings`](crate::components::LevelSettings) and
+/// [`LegacyLevelSettings`].
 #[derive(Debug, Clone, PartialEq)]
-pub enum LevelSettings {
+pub enum LevelSettingsData {
     /// Level version 2 and later: a game object with a `LevelSettings` component.
     GameObject(GameObject),
-    /// Level versions 0 and 1.
-    Legacy { version: i32, data: Vec<u8> },
+    /// Level versions 0 and 1: the settings in a format of their own.
+    Legacy {
+        /// The format version of the settings.
+        version: i32,
+        body: LegacySettingsBody,
+    },
+}
+
+/// The body of [`LevelSettingsData::Legacy`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum LegacySettingsBody {
+    Data {
+        data: Box<LegacyLevelSettings>,
+        /// Whether the body has fewer or more values than its version reads.
+        end: BodyEnd,
+    },
+    /// Settings that don't decode, such as ones cut short before a string.
+    Raw(Vec<u8>),
 }
 
 impl Level {
@@ -77,11 +98,15 @@ impl Level {
         let layer_count = s.count()?;
         let version = s.i32()?;
         let settings = if version >= 2 {
-            LevelSettings::GameObject(GameObject::read(&mut s, FieldFormat::for_level(version))?)
+            LevelSettingsData::GameObject(GameObject::read(&mut s, FieldFormat::for_level(version))?)
         } else {
             let (_, mut ls) = s.scope(&[mark::LEGACY_LEVEL_SETTINGS])?;
             let version = ls.i32()?;
-            LevelSettings::Legacy { version, data: ls.rest().to_vec() }
+            let body = match ls.attempt(|ls| LegacyLevelSettings::read_body(ls, version)) {
+                Ok((data, end)) => LegacySettingsBody::Data { data, end },
+                Err(_) => LegacySettingsBody::Raw(ls.rest().to_vec()),
+            };
+            LevelSettingsData::Legacy { version, body }
         };
         let layers = (0..layer_count)
             .map(|_| Layer::read(&mut s, version))
@@ -96,10 +121,13 @@ impl Level {
             w.count(self.layers.len());
             w.i32(self.version);
             match &self.settings {
-                LevelSettings::GameObject(obj) => obj.write(w, FieldFormat::for_level(self.version)),
-                LevelSettings::Legacy { version, data } => w.scope(mark::LEGACY_LEVEL_SETTINGS, |w| {
+                LevelSettingsData::GameObject(obj) => obj.write(w, FieldFormat::for_level(self.version)),
+                LevelSettingsData::Legacy { version, body } => w.scope(mark::LEGACY_LEVEL_SETTINGS, |w| {
                     w.i32(*version);
-                    w.bytes(data);
+                    match body {
+                        LegacySettingsBody::Data { data, end } => data.write_body(w, *version, end),
+                        LegacySettingsBody::Raw(bytes) => w.bytes(bytes),
+                    }
                 }),
             }
             for layer in &self.layers {
@@ -273,6 +301,12 @@ pub enum ComponentBody {
     /// The game's generic format, used by `SerialComponent`s without a hand-written
     /// serializer (and by version 0 of most that have one): every field by name.
     Fields(Vec<Field>),
+    /// A component with a hand-written serializer.
+    Data {
+        data: ComponentData,
+        /// Whether the body has fewer or more values than its version reads.
+        end: BodyEnd,
+    },
     /// Not decoded yet.
     Raw(Vec<u8>),
 }
@@ -311,14 +345,8 @@ impl Component {
                 Ok(transform) => ComponentBody::Transform(transform),
                 Err(_) => ComponentBody::Raw(s.rest().to_vec()),
             }
-        } else if let ComponentKind::Known { id, .. } = kind {
-            // Which components use the generic format isn't known yet, so detect it. The exact
-            // absolute end offsets make a false match practically impossible; without them
-            // (level version 0), every field name must be known and every value must parse.
-            match s.attempt(|s| read_fields(s, id, format)) {
-                Ok(fields) => ComponentBody::Fields(fields),
-                Err(_) => ComponentBody::Raw(s.rest().to_vec()),
-            }
+        } else if let ComponentKind::Known { id, version, .. } = kind {
+            read_known_body(&mut s, id, version, format)
         } else {
             ComponentBody::Raw(s.rest().to_vec())
         };
@@ -343,6 +371,11 @@ impl Component {
                 ComponentBody::Empty => {}
                 ComponentBody::Transform(t) => t.write(w, format),
                 ComponentBody::Fields(fields) => write_fields(w, fields, format),
+                ComponentBody::Data { data, end } => match self.kind {
+                    ComponentKind::Known { version, .. } => data.write(w, version, end),
+                    // Unknown components have no version.
+                    ComponentKind::Unknown { .. } => data.write(w, data.latest_version(), end),
+                },
                 ComponentBody::Raw(bytes) => w.bytes(bytes),
             }
         });
@@ -353,6 +386,22 @@ impl Component {
             ComponentKind::Known { id, .. } => Some(id),
             ComponentKind::Unknown { .. } => None,
         }
+    }
+}
+
+/// Reads the non-empty body of a component of a known type.
+fn read_known_body(s: &mut Reader, id: ComponentId, version: i32, format: FieldFormat) -> ComponentBody {
+    if ComponentData::decodes(id, version)
+        && let Ok((data, end)) = s.attempt(|s| ComponentData::read(s, id, version))
+    {
+        return ComponentBody::Data { data, end };
+    }
+    // Which components use the generic format isn't known yet, so detect it. The exact absolute
+    // end offsets make a false match practically impossible; without them (level version 0),
+    // every field name must be known and every value must parse.
+    match s.attempt(|s| read_fields(s, id, format)) {
+        Ok(fields) => ComponentBody::Fields(fields),
+        Err(_) => ComponentBody::Raw(s.rest().to_vec()),
     }
 }
 

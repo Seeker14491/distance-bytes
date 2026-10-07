@@ -1,0 +1,28 @@
+use std::ops::RangeInclusive;
+
+use crate::error::Result;
+use crate::string::DString;
+use crate::visit::{Visit, Visitor};
+
+/// `LensFlare` (the game's `LensFlareWrapper`): simulated camera lens flares.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct LensFlare {
+    /// Version 0 only, ignored by the game.
+    pub flare_name: Option<DString>,
+    pub brightness: Option<f32>,
+    /// `[r, g, b, a]`.
+    pub color: Option<[f32; 4]>,
+}
+
+impl Visit for LensFlare {
+    const VERSIONS: RangeInclusive<i32> = 0..=1;
+
+    fn visit(&mut self, v: &mut impl Visitor, version: i32) -> Result<()> {
+        if version == 0 {
+            v.value("FlareName", &mut self.flare_name)?;
+        }
+        v.value("Brightness", &mut self.brightness)?;
+        v.value("Color", &mut self.color)?;
+        Ok(())
+    }
+}

@@ -115,6 +115,14 @@ impl<'a> Reader<'a> {
         Ok(out)
     }
 
+    /// Reads the `n` bytes of a byte array's contents.
+    pub fn byte_array(&mut self, n: usize) -> Result<&'a [u8]> {
+        let start = self.pos;
+        let out = self.bytes(n)?;
+        self.record(start, || TraceValue::Bytes(n));
+        Ok(out)
+    }
+
     /// Reads the rest of this reader's range without recording it in the trace.
     pub fn rest(&mut self) -> &'a [u8] {
         let out = &self.data[self.pos..self.end];
@@ -317,6 +325,8 @@ pub enum TraceValue {
     Char(u16),
     Bool(bool),
     String(String),
+    /// The contents of a byte array, by length.
+    Bytes(usize),
     /// The empty marker.
     Empty,
 }
@@ -335,6 +345,12 @@ impl Writer {
 
     pub fn pos(&self) -> usize {
         self.buf.len()
+    }
+
+    /// Removes everything written after `pos`, which must not be inside a scope begun since.
+    pub(crate) fn truncate(&mut self, pos: usize) {
+        assert!(self.scopes.last().is_none_or(|&s| s < pos), "truncating into an open scope");
+        self.buf.truncate(pos);
     }
 
     pub fn finish(self) -> Vec<u8> {

@@ -48,6 +48,7 @@ pub fn event_json(e: &TraceEvent) -> String {
         TraceValue::Char(v) => ("char", v.to_string()),
         TraceValue::Bool(v) => ("bool", v.to_string()),
         TraceValue::String(s) => ("string", serde_json::to_string(s).unwrap()),
+        TraceValue::Bytes(n) => ("bytes", n.to_string()),
         TraceValue::Empty => ("empty", "null".to_owned()),
     };
     format!(r#"{{"o":{},"l":{},"t":"{t}","v":{v}}}"#, e.offset, e.len)
@@ -86,6 +87,7 @@ fn matches(ours: &TraceEvent, game: &GameEvent) -> bool {
         TraceValue::Char(x) => is("char") && v.as_u64() == Some(u64::from(*x)),
         TraceValue::Bool(x) => is("bool") && v.as_bool() == Some(*x),
         TraceValue::String(s) => is("string") && v.as_str() == Some(s),
+        TraceValue::Bytes(n) => game.t == "bytes" && v.as_u64() == Some(*n as u64),
         TraceValue::Empty => game.t == "empty",
     }
 }

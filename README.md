@@ -5,7 +5,8 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 ## Status
 
 - Reads every binary `.bytes` file the game writes into a tree of levels, layers, game objects and components, and writes it back byte-identical. Covers level versions 0–4 and non-level files (custom objects, profiles, leaderboards, replays).
-- Decodes `Transform` components (position, rotation, scale, children) and components in the game's generic field format (field names with typed values). The generic format stores absolute file offsets, which are recomputed on write, so objects can be added, removed or moved. Other component bodies are kept as raw bytes.
+- Decodes `Transform` components (position, rotation, scale, children) and components in the game's generic field format (field names with typed values). The generic format stores absolute file offsets, which are recomputed on write, so objects can be added, removed or moved.
+- Decodes every component with its own serializer into a typed struct (`distance_bytes::components`), in every version the game reads, along with the level settings of level versions 0 and 1. Bodies that don't decode are kept as raw bytes. In the corpus, these are only bodies the game itself doesn't read.
 
 ## Layout
 
@@ -28,6 +29,8 @@ cargo run --release -p distance-bytes-cli -- <command>
 - `trace <file>`: every value our decoder reads, as JSON lines.
 - `relocate <in> <out> [--pad N]`: re-write a level with N characters added to its name, which moves everything after it. Use it with `trace-check` to test that offsets are recomputed.
 - `trace-check <paths>...`: compare our decoder against the game, using the BytesTrace server. It reports mismatches, failed game loads and the share of the game-read bytes that we decode.
+- `coverage <paths>... [--per N]`: for every decoded (component, version) pair, the N smallest files that contain it. Gives a small set of files for `trace-check`.
+- `synth --out <dir> <paths>...`: for every decoded component version that no file under the paths has, write a copy of a file with that component, replaced by a sample of that version with every value set. Use it with `trace-check` to test those versions.
 
 ## Tests
 

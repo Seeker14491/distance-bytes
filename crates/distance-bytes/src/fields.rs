@@ -10,6 +10,7 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::generated::fields::FIELDS;
 use crate::io::{Reader, Writer, mark};
 use crate::string::DString;
+use crate::visit::Pod;
 
 /// How generic fields are stored, which depends on the level version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,13 +185,13 @@ fn read_value(r: &mut Reader, ty: FieldType) -> Result<Value> {
         FieldType::Double => Value::Double(r.f64()?),
         FieldType::Char => Value::Char(r.char()?),
         FieldType::String => Value::String(r.string()?),
-        FieldType::Vector2 => Value::Vector2(visited_floats(r)?),
-        FieldType::Vector3 => Value::Vector3(visited_floats(r)?),
-        FieldType::Vector4 => Value::Vector4(visited_floats(r)?),
-        FieldType::Quaternion => Value::Quaternion(visited_floats(r)?),
-        FieldType::Color => Value::Color(visited_floats(r)?),
+        FieldType::Vector2 => Value::Vector2(Pod::read(r)?),
+        FieldType::Vector3 => Value::Vector3(Pod::read(r)?),
+        FieldType::Vector4 => Value::Vector4(Pod::read(r)?),
+        FieldType::Quaternion => Value::Quaternion(Pod::read(r)?),
+        FieldType::Color => Value::Color(Pod::read(r)?),
         FieldType::Bounds => {
-            Value::Bounds { center: visited_floats(r)?, extents: visited_floats(r)? }
+            Value::Bounds { center: Pod::read(r)?, extents: Pod::read(r)? }
         }
         FieldType::Reference => Value::Reference(r.u32()?),
         FieldType::Array(element) => {
@@ -208,19 +209,6 @@ fn read_value(r: &mut Reader, ty: FieldType) -> Result<Value> {
             Value::Array(items)
         }
     })
-}
-
-/// Reads floats that the game reads one by one with `Visit`, which treats the empty marker as a
-/// missing value. A float with those bits (a NaN) would be misread, so it isn't accepted.
-fn visited_floats<const N: usize>(r: &mut Reader) -> Result<[f32; N]> {
-    let mut out = [0.0; N];
-    for v in &mut out {
-        if r.peek_i32() == Some(crate::io::EMPTY_MARKER) {
-            return Err(r.error(ErrorKind::UnexpectedEmptyMarker));
-        }
-        *v = r.f32()?;
-    }
-    Ok(out)
 }
 
 pub(crate) fn write_fields(w: &mut Writer, fields: &[Field], format: FieldFormat) {
