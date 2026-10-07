@@ -55,7 +55,10 @@ impl Visit for GoldenSimples {
             v.value("additiveTransparency", &mut self.additive_transparency)?;
         }
         if version >= 2 {
-            v.value("multiplicativeTransparency", &mut self.multiplicative_transparency)?;
+            v.value(
+                "multiplicativeTransparency",
+                &mut self.multiplicative_transparency,
+            )?;
             v.value("invertEmit", &mut self.invert_emit)?;
         }
         Ok(())

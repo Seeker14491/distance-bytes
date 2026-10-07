@@ -13,7 +13,10 @@ pub enum ErrorKind {
     /// Tried to read `needed` bytes but the enclosing scope (or file) ended first.
     UnexpectedEnd { needed: usize },
     /// A scope started with a different mark than expected.
-    UnexpectedMark { expected: &'static [i32], found: i32 },
+    UnexpectedMark {
+        expected: &'static [i32],
+        found: i32,
+    },
     /// A scope's length is negative or extends past its parent scope.
     InvalidScopeLength(i64),
     /// A 7-bit encoded length prefix was malformed or too large.

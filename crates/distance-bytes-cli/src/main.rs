@@ -6,8 +6,8 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use distance_bytes::io::mark;
 use distance_bytes::{
-    BodyEnd, BytesFile, ComponentBody, ComponentData, ComponentId, ComponentKind, FieldValue, GameObject,
-    LegacyLevelSettings, LegacySettingsBody, LevelSettingsData,
+    BodyEnd, BytesFile, ComponentBody, ComponentData, ComponentId, ComponentKind, FieldValue,
+    GameObject, LegacyLevelSettings, LegacySettingsBody, LevelSettingsData,
 };
 use rayon::prelude::*;
 
@@ -94,18 +94,32 @@ fn dump(path: &Path) -> Result<()> {
     let file = BytesFile::read(&data).with_context(|| path.display().to_string())?;
     match &file {
         BytesFile::Level(level) => {
-            println!("Level {:?} (version {})", level.name.to_string_lossy(), level.version);
+            println!(
+                "Level {:?} (version {})",
+                level.name.to_string_lossy(),
+                level.version
+            );
             match &level.settings {
                 LevelSettingsData::GameObject(obj) => dump_object(obj, 1),
                 LevelSettingsData::Legacy { version, body } => match body {
                     LegacySettingsBody::Data { data, end } => {
-                        println!("  LegacySettings version {version}: {}", describe_data(data, end))
+                        println!(
+                            "  LegacySettings version {version}: {}",
+                            describe_data(data, end)
+                        )
                     }
-                    LegacySettingsBody::Raw(b) => println!("  LegacySettings version {version}: {} bytes", b.len()),
+                    LegacySettingsBody::Raw(b) => {
+                        println!("  LegacySettings version {version}: {} bytes", b.len())
+                    }
                 },
             }
             for layer in &level.layers {
-                println!("  Layer {:?} {:?} ({} objects)", layer.name.to_string_lossy(), layer.flags, layer.objects.len());
+                println!(
+                    "  Layer {:?} {:?} ({} objects)",
+                    layer.name.to_string_lossy(),
+                    layer.flags,
+                    layer.objects.len()
+                );
                 for obj in &layer.objects {
                     dump_object(obj, 2);
                 }
@@ -125,7 +139,12 @@ fn relocate(input: &Path, output: &Path, pad: usize) -> Result<()> {
     level.name = format!("{}{}", level.name.to_string_lossy(), "_".repeat(pad)).into();
     let out = file.write();
     std::fs::write(output, &out)?;
-    println!("wrote {} ({} bytes, was {})", output.display(), out.len(), data.len());
+    println!(
+        "wrote {} ({} bytes, was {})",
+        output.display(),
+        out.len(),
+        data.len()
+    );
     Ok(())
 }
 
@@ -140,7 +159,10 @@ fn dump_object(obj: &GameObject, depth: usize) {
         let body = match &c.body {
             ComponentBody::Empty => "empty".to_owned(),
             ComponentBody::Transform(t) => {
-                format!("pos {:?} rot {:?} scale {:?}", t.position, t.rotation, t.scale)
+                format!(
+                    "pos {:?} rot {:?} scale {:?}",
+                    t.position, t.rotation, t.scale
+                )
             }
             ComponentBody::Fields(fields) => {
                 let fields: Vec<_> = fields
@@ -178,7 +200,10 @@ fn binary_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
             for entry in std::fs::read_dir(path)? {
                 walk(&entry?.path(), out)?;
             }
-        } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("bytes")) {
+        } else if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("bytes"))
+        {
             out.push(path.to_owned());
         }
         Ok(())
@@ -192,7 +217,9 @@ fn binary_files(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
 }
 
 fn is_binary(data: &[u8]) -> bool {
-    let head = data.get(..4).map(|b| i32::from_le_bytes(b.try_into().unwrap()));
+    let head = data
+        .get(..4)
+        .map(|b| i32::from_le_bytes(b.try_into().unwrap()));
     matches!(head, Some(mark::LEVEL | mark::GAME_OBJECT))
 }
 
@@ -211,13 +238,24 @@ fn roundtrip(paths: &[PathBuf]) -> Result<()> {
                 Ok(file) => {
                     let out = file.write();
                     (out != data).then(|| {
-                        let at = out.iter().zip(&data).position(|(a, b)| a != b).unwrap_or(out.len().min(data.len()));
-                        format!("output differs at {at:#x} (len {} vs {})", out.len(), data.len())
+                        let at = out
+                            .iter()
+                            .zip(&data)
+                            .position(|(a, b)| a != b)
+                            .unwrap_or(out.len().min(data.len()));
+                        format!(
+                            "output differs at {at:#x} (len {} vs {})",
+                            out.len(),
+                            data.len()
+                        )
                     })
                 }
             };
             if let Some(p) = problem {
-                failures.lock().unwrap().push(format!("{}: {p}", path.display()));
+                failures
+                    .lock()
+                    .unwrap()
+                    .push(format!("{}: {p}", path.display()));
             }
             Ok(1)
         })
@@ -228,13 +266,19 @@ fn roundtrip(paths: &[PathBuf]) -> Result<()> {
         println!("FAIL {f}");
     }
     println!("{checked} binary files checked, {} failed", failures.len());
-    if failures.is_empty() { Ok(()) } else { std::process::exit(1) }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        std::process::exit(1)
+    }
 }
 
 fn coverage(paths: &[PathBuf], per: usize) -> Result<()> {
     fn pairs(obj: &GameObject, out: &mut Vec<(i32, i32)>) {
         for c in &obj.components {
-            if let (ComponentKind::Known { id, version, .. }, ComponentBody::Data { .. }) = (&c.kind, &c.body) {
+            if let (ComponentKind::Known { id, version, .. }, ComponentBody::Data { .. }) =
+                (&c.kind, &c.body)
+            {
                 out.push((id.0, *version));
             }
         }
@@ -275,7 +319,11 @@ fn coverage(paths: &[PathBuf], per: usize) -> Result<()> {
     for ((id, version), mut files) in found.into_inner().unwrap() {
         files.sort();
         for (_, path) in files.iter().take(per) {
-            println!("{} v{version}\t{}", distance_bytes::ComponentId(id), path.display());
+            println!(
+                "{} v{version}\t{}",
+                distance_bytes::ComponentId(id),
+                path.display()
+            );
         }
     }
     Ok(())
@@ -285,25 +333,44 @@ fn synth(paths: &[PathBuf], out: &Path) -> Result<()> {
     fn components(obj: &GameObject, out: &mut Vec<(Option<ComponentId>, i32, bool)>) {
         for c in &obj.components {
             if let ComponentKind::Known { id, version, .. } = c.kind {
-                out.push((Some(id), version, matches!(c.body, ComponentBody::Data { .. })));
+                out.push((
+                    Some(id),
+                    version,
+                    matches!(c.body, ComponentBody::Data { .. }),
+                ));
             }
         }
         for child in obj.children() {
             components(child, out);
         }
     }
-    fn replace(obj: &mut GameObject, id: ComponentId, version: i32, data: &mut Option<ComponentData>) -> bool {
+    fn replace(
+        obj: &mut GameObject,
+        id: ComponentId,
+        version: i32,
+        data: &mut Option<ComponentData>,
+    ) -> bool {
         for c in &mut obj.components {
-            if let ComponentKind::Known { id: found, version: v, .. } = &mut c.kind
+            if let ComponentKind::Known {
+                id: found,
+                version: v,
+                ..
+            } = &mut c.kind
                 && *found == id
             {
                 *v = version;
-                c.body = ComponentBody::Data { data: data.take().unwrap(), end: BodyEnd::Complete };
+                c.body = ComponentBody::Data {
+                    data: data.take().unwrap(),
+                    end: BodyEnd::Complete,
+                };
                 return true;
             }
         }
         obj.components.iter_mut().any(|c| match &mut c.body {
-            ComponentBody::Transform(t) => t.children.iter_mut().any(|child| replace(child, id, version, data)),
+            ComponentBody::Transform(t) => t
+                .children
+                .iter_mut()
+                .any(|child| replace(child, id, version, data)),
             _ => false,
         })
     }
@@ -329,9 +396,11 @@ fn synth(paths: &[PathBuf], out: &Path) -> Result<()> {
             Ok(BytesFile::Level(level)) => {
                 match &level.settings {
                     LevelSettingsData::GameObject(obj) => components(obj, &mut found),
-                    LevelSettingsData::Legacy { version, body } => {
-                        found.push((None, *version, matches!(body, LegacySettingsBody::Data { .. })))
-                    }
+                    LevelSettingsData::Legacy { version, body } => found.push((
+                        None,
+                        *version,
+                        matches!(body, LegacySettingsBody::Data { .. }),
+                    )),
                 }
                 for obj in level.layers.iter().flat_map(|l| &l.objects) {
                     components(obj, &mut found);
@@ -342,7 +411,10 @@ fn synth(paths: &[PathBuf], out: &Path) -> Result<()> {
         let mut seen = seen.lock().unwrap();
         for (id, version, decoded) in found {
             let s = seen.entry(id).or_default();
-            if s.host.as_ref().is_none_or(|(size, p)| (data.len(), path) < (*size, p)) {
+            if s.host
+                .as_ref()
+                .is_none_or(|(size, p)| (data.len(), path) < (*size, p))
+            {
                 s.host = Some((data.len(), path.clone()));
             }
             if decoded {
@@ -361,10 +433,21 @@ fn synth(paths: &[PathBuf], out: &Path) -> Result<()> {
             // The game reads legacy level settings above version 8 the same as version 8.
             for version in (0..=8).filter(|v| !s.decoded.contains(v)) {
                 let mut file = file.clone();
-                let BytesFile::Level(level) = &mut file else { unreachable!() };
+                let BytesFile::Level(level) = &mut file else {
+                    unreachable!()
+                };
                 let data = Box::new(LegacyLevelSettings::sample(version));
-                level.settings = LevelSettingsData::Legacy { version, body: LegacySettingsBody::Data { data, end: BodyEnd::Complete } };
-                std::fs::write(out.join(format!("LegacyLevelSettings_v{version}.bytes")), file.write())?;
+                level.settings = LevelSettingsData::Legacy {
+                    version,
+                    body: LegacySettingsBody::Data {
+                        data,
+                        end: BodyEnd::Complete,
+                    },
+                };
+                std::fs::write(
+                    out.join(format!("LegacyLevelSettings_v{version}.bytes")),
+                    file.write(),
+                )?;
                 written += 1;
             }
             continue;
@@ -373,7 +456,9 @@ fn synth(paths: &[PathBuf], out: &Path) -> Result<()> {
             if s.decoded.contains(&version) {
                 continue;
             }
-            let Some(sample) = ComponentData::sample(id, version) else { continue };
+            let Some(sample) = ComponentData::sample(id, version) else {
+                continue;
+            };
             let mut file = file.clone();
             let mut data = Some(sample);
             let replaced = match &mut file {
@@ -382,7 +467,10 @@ fn synth(paths: &[PathBuf], out: &Path) -> Result<()> {
                         LevelSettingsData::GameObject(obj) => Some(obj),
                         LevelSettingsData::Legacy { .. } => None,
                     };
-                    settings.into_iter().chain(level.layers.iter_mut().flat_map(|l| &mut l.objects)).any(|obj| replace(obj, id, version, &mut data))
+                    settings
+                        .into_iter()
+                        .chain(level.layers.iter_mut().flat_map(|l| &mut l.objects))
+                        .any(|obj| replace(obj, id, version, &mut data))
                 }
                 BytesFile::GameObject(obj) => replace(obj, id, version, &mut data),
             };
@@ -551,8 +639,14 @@ fn stats(paths: &[PathBuf]) -> Result<()> {
                 *local.levels.entry(level.version).or_default() += 1;
                 match &level.settings {
                     LevelSettingsData::GameObject(obj) => local.object(obj),
-                    LevelSettingsData::Legacy { body: LegacySettingsBody::Data { .. }, .. } => local.legacy_settings_decoded += 1,
-                    LevelSettingsData::Legacy { body: LegacySettingsBody::Raw(_), .. } => local.legacy_settings_raw += 1,
+                    LevelSettingsData::Legacy {
+                        body: LegacySettingsBody::Data { .. },
+                        ..
+                    } => local.legacy_settings_decoded += 1,
+                    LevelSettingsData::Legacy {
+                        body: LegacySettingsBody::Raw(_),
+                        ..
+                    } => local.legacy_settings_raw += 1,
                 }
                 for layer in &level.layers {
                     for obj in &layer.objects {
@@ -581,8 +675,14 @@ fn stats(paths: &[PathBuf]) -> Result<()> {
         println!("  {e}");
     }
     println!("game objects: {}", s.objects);
-    println!("transforms: {} decoded, {} raw", s.transforms_decoded, s.transforms_raw);
-    println!("legacy level settings: {} decoded, {} raw", s.legacy_settings_decoded, s.legacy_settings_raw);
+    println!(
+        "transforms: {} decoded, {} raw",
+        s.transforms_decoded, s.transforms_raw
+    );
+    println!(
+        "legacy level settings: {} decoded, {} raw",
+        s.legacy_settings_decoded, s.legacy_settings_raw
+    );
     println!(
         "generic field bodies: {}, with {} typed values and {} raw values ({} bytes)",
         total.fields, total.typed_values, total.raw_values, total.raw_value_bytes
@@ -600,14 +700,30 @@ fn stats(paths: &[PathBuf]) -> Result<()> {
         total.data, total.truncated, total.trailing
     );
     println!("raw bodies: {} ({} bytes)", total.raw, total.raw_bytes);
-    println!("raw bodies containing a game object mark: {}", s.raw_bodies_with_object_mark);
+    println!(
+        "raw bodies containing a game object mark: {}",
+        s.raw_bodies_with_object_mark
+    );
     println!("unknown components: {:?}", s.unknown_components);
-    println!("components ({} kinds of (mark, id, version)):", s.components.len());
+    println!(
+        "components ({} kinds of (mark, id, version)):",
+        s.components.len()
+    );
     let mut rows: Vec<_> = s.components.iter().collect();
     rows.sort_by_key(|(_, v)| std::cmp::Reverse(v.raw_bytes + v.raw_value_bytes));
     println!(
         "  {:>10} {:>9} {:>9} {:>7} {:>7} {:>9} {:>9} {:>12} {:>9} {:>9} {:>9}  component",
-        "count", "empty", "data", "short", "long", "fields", "raw", "raw bytes", "typed", "raw vals", "raw val b"
+        "count",
+        "empty",
+        "data",
+        "short",
+        "long",
+        "fields",
+        "raw",
+        "raw bytes",
+        "typed",
+        "raw vals",
+        "raw val b"
     );
     for ((m, id, version), v) in rows {
         let kind = match *m {

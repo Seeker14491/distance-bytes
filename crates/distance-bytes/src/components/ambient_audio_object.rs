@@ -59,7 +59,10 @@ impl Visit for AmbientAudioObject {
             v.value("Is 2D", &mut self.is_2_d)?;
         }
         if version >= 7 {
-            v.value("Max Attenuation Override", &mut self.max_attenuation_override)?;
+            v.value(
+                "Max Attenuation Override",
+                &mut self.max_attenuation_override,
+            )?;
         }
         v.value("ListenForWarpEvent", &mut self.listen_for_warp_event)?;
         v.value("WarpAnchor ID", &mut self.warp_anchor_id)?;

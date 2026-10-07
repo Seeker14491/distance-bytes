@@ -18,7 +18,10 @@ impl Visit for DisableLocalCarWarnings {
 
     fn visit(&mut self, v: &mut impl Visitor, version: i32) -> Result<()> {
         if version >= 1 {
-            v.value("disablePressBackToReset_", &mut self.disable_press_back_to_reset)?;
+            v.value(
+                "disablePressBackToReset_",
+                &mut self.disable_press_back_to_reset,
+            )?;
             v.value("disableWrongWay_", &mut self.disable_wrong_way)?;
             v.value("disableCarTrackArrow_", &mut self.disable_car_track_arrow)?;
         }

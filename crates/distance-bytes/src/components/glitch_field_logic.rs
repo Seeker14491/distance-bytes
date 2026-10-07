@@ -74,8 +74,14 @@ impl Visit for GlitchFieldLogic {
             }
             v.value("Glitch Intensity Min", &mut self.glitch_intensity_min)?;
             v.value("Glitch Intensity Max", &mut self.glitch_intensity_max)?;
-            v.value("Car Screen Glitch Intensity", &mut self.car_screen_glitch_intensity)?;
-            v.value("Car Screen Noise Intensity", &mut self.car_screen_noise_intensity)?;
+            v.value(
+                "Car Screen Glitch Intensity",
+                &mut self.car_screen_glitch_intensity,
+            )?;
+            v.value(
+                "Car Screen Noise Intensity",
+                &mut self.car_screen_noise_intensity,
+            )?;
             v.value("Bloom Max", &mut self.bloom_max)?;
             v.value("Bloom Decay", &mut self.bloom_decay)?;
             v.value("Filter Colors", &mut self.filter_colors)?;

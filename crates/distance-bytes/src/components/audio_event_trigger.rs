@@ -27,7 +27,10 @@ impl Visit for AudioEventTrigger {
         if version >= 1 {
             v.value("Event", &mut self.event)?;
             v.value("OneTimeTrigger", &mut self.one_time_trigger)?;
-            v.value("IsAdventureMusicTrigger_", &mut self.is_adventure_music_trigger)?;
+            v.value(
+                "IsAdventureMusicTrigger_",
+                &mut self.is_adventure_music_trigger,
+            )?;
             if version < 3 {
                 v.value("MusicCueID", &mut self.music_cue_id)?;
             } else {

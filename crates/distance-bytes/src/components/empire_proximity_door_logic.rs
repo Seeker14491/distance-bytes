@@ -26,7 +26,10 @@ impl Visit for EmpireProximityDoorLogic {
 
     fn visit(&mut self, v: &mut impl Visitor, _version: i32) -> Result<()> {
         v.value("globalSpeed_", &mut self.global_speed)?;
-        v.value("moveOutwardinTriAngles_", &mut self.move_outwardin_tri_angles)?;
+        v.value(
+            "moveOutwardinTriAngles_",
+            &mut self.move_outwardin_tri_angles,
+        )?;
         v.value("initDelayTime_", &mut self.init_delay_time)?;
         v.value("firstOpenAmount_", &mut self.first_open_amount)?;
         v.value("firstOpenTime_", &mut self.first_open_time)?;

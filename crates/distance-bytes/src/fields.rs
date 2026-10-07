@@ -24,7 +24,11 @@ pub(crate) enum FieldFormat {
 
 impl FieldFormat {
     pub(crate) fn for_level(version: i32) -> Self {
-        if version == 0 { FieldFormat::NoOffsets } else { FieldFormat::EndOffsets }
+        if version == 0 {
+            FieldFormat::NoOffsets
+        } else {
+            FieldFormat::EndOffsets
+        }
     }
 }
 
@@ -71,7 +75,10 @@ pub enum Value {
     Quaternion([f32; 4]),
     /// `[r, g, b, a]`.
     Color([f32; 4]),
-    Bounds { center: [f32; 3], extents: [f32; 3] },
+    Bounds {
+        center: [f32; 3],
+        extents: [f32; 3],
+    },
     /// The ID of a referenced game object or component.
     Reference(u32),
     Array(Vec<Value>),
@@ -110,11 +117,19 @@ pub(crate) type FieldInfo = (&'static str, &'static str, Option<FieldType>);
 /// The type of a component's field in the generic format, if the game has a field of that name.
 pub fn field_type(id: ComponentId, name: &str) -> Option<FieldType> {
     let i = FIELDS.binary_search_by_key(&id.0, |&(id, _)| id).ok()?;
-    FIELDS[i].1.iter().find(|&&(n, _, _)| n == name).and_then(|&(_, _, ty)| ty)
+    FIELDS[i]
+        .1
+        .iter()
+        .find(|&&(n, _, _)| n == name)
+        .and_then(|&(_, _, ty)| ty)
 }
 
 /// Reads a whole component body in the generic format.
-pub(crate) fn read_fields(r: &mut Reader, id: ComponentId, format: FieldFormat) -> Result<Vec<Field>> {
+pub(crate) fn read_fields(
+    r: &mut Reader,
+    id: ComponentId,
+    format: FieldFormat,
+) -> Result<Vec<Field>> {
     let count_pos = r.pos();
     let count = r.count()?;
     // A body holding only a zero count could just as well be hand-written data, so don't claim
@@ -190,15 +205,19 @@ fn read_value(r: &mut Reader, ty: FieldType) -> Result<Value> {
         FieldType::Vector4 => Value::Vector4(Pod::read(r)?),
         FieldType::Quaternion => Value::Quaternion(Pod::read(r)?),
         FieldType::Color => Value::Color(Pod::read(r)?),
-        FieldType::Bounds => {
-            Value::Bounds { center: Pod::read(r)?, extents: Pod::read(r)? }
-        }
+        FieldType::Bounds => Value::Bounds {
+            center: Pod::read(r)?,
+            extents: Pod::read(r)?,
+        },
         FieldType::Reference => Value::Reference(r.u32()?),
         FieldType::Array(element) => {
             let mark_pos = r.pos();
             let found = r.i32()?;
             if found != mark::ARRAY {
-                let kind = ErrorKind::UnexpectedMark { expected: &[mark::ARRAY], found };
+                let kind = ErrorKind::UnexpectedMark {
+                    expected: &[mark::ARRAY],
+                    found,
+                };
                 return Err(Error::new(mark_pos, kind));
             }
             let count = r.count()?;
@@ -264,7 +283,10 @@ mod tests {
     fn field_types_from_schema() {
         let id = ComponentId::CAR_SCREEN_TEXT_DECODE_TRIGGER;
         assert_eq!(field_type(id, "PerCharSpeed"), Some(FieldType::Float));
-        assert_eq!(field_type(id, "AnnouncerPhrases"), Some(FieldType::Array(&FieldType::String)));
+        assert_eq!(
+            field_type(id, "AnnouncerPhrases"),
+            Some(FieldType::Array(&FieldType::String))
+        );
         assert_eq!(field_type(id, "NoSuchField"), None);
     }
 
@@ -272,8 +294,14 @@ mod tests {
     fn typed_values_round_trip_in_both_formats() {
         let id = ComponentId::CAR_SCREEN_TEXT_DECODE_TRIGGER;
         let fields = vec![
-            Field { name: "PerCharSpeed".into(), value: FieldValue::Value(Value::Float(0.5)) },
-            Field { name: "Text".into(), value: FieldValue::Empty },
+            Field {
+                name: "PerCharSpeed".into(),
+                value: FieldValue::Value(Value::Float(0.5)),
+            },
+            Field {
+                name: "Text".into(),
+                value: FieldValue::Empty,
+            },
             Field {
                 name: "AnnouncerPhrases".into(),
                 value: FieldValue::Value(Value::Array(vec![Value::String("hi".into())])),
@@ -291,7 +319,10 @@ mod tests {
 
     #[test]
     fn unknown_field_without_offsets_fails() {
-        let fields = vec![Field { name: "Nope".into(), value: FieldValue::Value(Value::Int(1)) }];
+        let fields = vec![Field {
+            name: "Nope".into(),
+            value: FieldValue::Value(Value::Int(1)),
+        }];
         let mut w = Writer::new();
         write_fields(&mut w, &fields, FieldFormat::NoOffsets);
         let buf = w.finish();
@@ -303,11 +334,20 @@ mod tests {
     #[test]
     fn end_offsets_are_recomputed() {
         let fields = vec![
-            Field { name: "A".into(), value: FieldValue::Value(Value::Int(7)) },
-            Field { name: "B".into(), value: FieldValue::Empty },
+            Field {
+                name: "A".into(),
+                value: FieldValue::Value(Value::Int(7)),
+            },
+            Field {
+                name: "B".into(),
+                value: FieldValue::Empty,
+            },
             Field {
                 name: "C".into(),
-                value: FieldValue::Value(Value::Array(vec![Value::Reference(1), Value::Reference(2)])),
+                value: FieldValue::Value(Value::Array(vec![
+                    Value::Reference(1),
+                    Value::Reference(2),
+                ])),
             },
         ];
         for prefix in [0, 5] {

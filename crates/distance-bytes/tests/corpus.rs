@@ -11,7 +11,10 @@ fn collect(path: &Path, out: &mut Vec<PathBuf>) {
         for entry in std::fs::read_dir(path).unwrap() {
             collect(&entry.unwrap().path(), out);
         }
-    } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("bytes")) {
+    } else if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("bytes"))
+    {
         out.push(path.to_owned());
     }
 }
@@ -31,7 +34,9 @@ fn corpus_round_trip() {
     let mut failures = Vec::new();
     for path in &files {
         let data = std::fs::read(path).unwrap();
-        let head = data.get(..4).map(|b| i32::from_le_bytes(b.try_into().unwrap()));
+        let head = data
+            .get(..4)
+            .map(|b| i32::from_le_bytes(b.try_into().unwrap()));
         if !matches!(head, Some(mark::LEVEL | mark::GAME_OBJECT)) {
             continue; // XML or other non-binary files
         }
@@ -44,7 +49,15 @@ fn corpus_round_trip() {
             Ok(_) => {}
         }
     }
-    assert!(checked > 0, "no binary .bytes files found in DISTANCE_BYTES_CORPUS");
-    assert!(failures.is_empty(), "{} of {checked} files failed:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        checked > 0,
+        "no binary .bytes files found in DISTANCE_BYTES_CORPUS"
+    );
+    assert!(
+        failures.is_empty(),
+        "{} of {checked} files failed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
     eprintln!("{checked} files round-tripped");
 }

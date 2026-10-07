@@ -28,7 +28,12 @@ pub struct AnimatorCurve {
 }
 
 impl AnimatorCurve {
-    fn visit(&mut self, v: &mut impl Visitor, new_format: bool, old_animation_t: bool) -> Result<()> {
+    fn visit(
+        &mut self,
+        v: &mut impl Visitor,
+        new_format: bool,
+        old_animation_t: bool,
+    ) -> Result<()> {
         v.value("delay_", &mut self.delay)?;
         v.value("duration_", &mut self.duration)?;
         v.value("timeOffset_", &mut self.time_offset)?;
@@ -70,10 +75,16 @@ impl AnimatorTrigger {
     fn visit(&mut self, v: &mut impl Visitor) -> Result<()> {
         v.value("defaultAction_", &mut self.default_action)?;
         v.value("onAction_", &mut self.on_action)?;
-        v.value("onWaitForAnimationFinish_", &mut self.on_wait_for_animation_finish)?;
+        v.value(
+            "onWaitForAnimationFinish_",
+            &mut self.on_wait_for_animation_finish,
+        )?;
         v.value("onReset_", &mut self.on_reset)?;
         v.value("offAction_", &mut self.off_action)?;
-        v.value("offWaitForAnimationFinish_", &mut self.off_wait_for_animation_finish)?;
+        v.value(
+            "offWaitForAnimationFinish_",
+            &mut self.off_wait_for_animation_finish,
+        )?;
         v.value("offReset_", &mut self.off_reset)
     }
 }

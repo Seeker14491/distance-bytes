@@ -89,8 +89,14 @@ impl Visit for SetAbilitiesTrigger {
         }
         if version >= 8 {
             v.value("oneShot_", &mut self.one_shot)?;
-            v.value("restoreAbilitiesOnExit_", &mut self.restore_abilities_on_exit)?;
-            v.value("restoreAbilitiesOnDeath_", &mut self.restore_abilities_on_death)?;
+            v.value(
+                "restoreAbilitiesOnExit_",
+                &mut self.restore_abilities_on_exit,
+            )?;
+            v.value(
+                "restoreAbilitiesOnDeath_",
+                &mut self.restore_abilities_on_death,
+            )?;
             v.value("delayBeforeRestore_", &mut self.delay_before_restore)?;
         }
         Ok(())

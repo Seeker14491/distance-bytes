@@ -36,14 +36,23 @@ impl Visit for VirusDropperDroneLogic {
         }
         if version >= 1 {
             v.value("triggerDistance_", &mut self.trigger_distance)?;
-            v.value("chaseTrackAheadDistance_", &mut self.chase_track_ahead_distance)?;
-            v.value("stompTrackAheadDistance_", &mut self.stomp_track_ahead_distance)?;
+            v.value(
+                "chaseTrackAheadDistance_",
+                &mut self.chase_track_ahead_distance,
+            )?;
+            v.value(
+                "stompTrackAheadDistance_",
+                &mut self.stomp_track_ahead_distance,
+            )?;
             v.value("chaseTime_", &mut self.chase_time)?;
             v.value("chaseHeight_", &mut self.chase_height)?;
             v.value("stompHeight_", &mut self.stomp_height)?;
             v.value("stompSpeed_", &mut self.stomp_speed)?;
             v.value("stompAnimationSpeed_", &mut self.stomp_animation_speed)?;
-            v.value("distanceBeforeLettingPlayerGo_", &mut self.distance_before_letting_player_go)?;
+            v.value(
+                "distanceBeforeLettingPlayerGo_",
+                &mut self.distance_before_letting_player_go,
+            )?;
         }
         Ok(())
     }

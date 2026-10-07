@@ -51,8 +51,14 @@ impl DString {
         match &self.0 {
             Repr::Text(s) => Cow::Borrowed(s),
             Repr::Raw(b) => {
-                let units = b.chunks(2).map(|c| u16::from_le_bytes([c[0], *c.get(1).unwrap_or(&0)]));
-                Cow::Owned(char::decode_utf16(units).map(|c| c.unwrap_or('\u{FFFD}')).collect())
+                let units = b
+                    .chunks(2)
+                    .map(|c| u16::from_le_bytes([c[0], *c.get(1).unwrap_or(&0)]));
+                Cow::Owned(
+                    char::decode_utf16(units)
+                        .map(|c| c.unwrap_or('\u{FFFD}'))
+                        .collect(),
+                )
             }
         }
     }

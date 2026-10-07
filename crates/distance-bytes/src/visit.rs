@@ -259,7 +259,11 @@ pub(crate) struct ReadVisitor<'r, 'a> {
 
 impl<'r, 'a> ReadVisitor<'r, 'a> {
     pub(crate) fn new(r: &'r mut Reader<'a>) -> Self {
-        Self { r, values: 0, cut: None }
+        Self {
+            r,
+            values: 0,
+            cut: None,
+        }
     }
 
     /// Whether the body ended before a value of type `T`, which then keeps its default. The
@@ -285,7 +289,11 @@ impl<'r, 'a> ReadVisitor<'r, 'a> {
         let mark_pos = self.r.pos();
         let found = self.r.i32()?;
         if found != mark {
-            let expected: &'static [i32] = if mark == mark::ARRAY { &[mark::ARRAY] } else { &[mark::DICTIONARY] };
+            let expected: &'static [i32] = if mark == mark::ARRAY {
+                &[mark::ARRAY]
+            } else {
+                &[mark::DICTIONARY]
+            };
             let kind = ErrorKind::UnexpectedMark { expected, found };
             return Err(Error::new(mark_pos, kind));
         }
@@ -308,7 +316,11 @@ impl Visitor for ReadVisitor<'_, '_> {
         Ok(())
     }
 
-    fn plain<T: Pod + Default + PartialEq>(&mut self, _name: &'static str, v: &mut T) -> Result<()> {
+    fn plain<T: Pod + Default + PartialEq>(
+        &mut self,
+        _name: &'static str,
+        v: &mut T,
+    ) -> Result<()> {
         if self.at_end::<T>()? {
             *v = T::default();
             return Ok(());
@@ -372,7 +384,12 @@ pub(crate) struct WriteVisitor<'w> {
 
 impl<'w> WriteVisitor<'w> {
     pub(crate) fn new(w: &'w mut Writer, cut: Option<u32>) -> Self {
-        Self { w, values: 0, cut, cut_pos: None }
+        Self {
+            w,
+            values: 0,
+            cut,
+            cut_pos: None,
+        }
     }
 
     /// Called before each value, with whether it's the one a truncated body is read with.
@@ -412,7 +429,11 @@ impl Visitor for WriteVisitor<'_> {
         Ok(())
     }
 
-    fn plain<T: Pod + Default + PartialEq>(&mut self, _name: &'static str, v: &mut T) -> Result<()> {
+    fn plain<T: Pod + Default + PartialEq>(
+        &mut self,
+        _name: &'static str,
+        v: &mut T,
+    ) -> Result<()> {
         self.before_value(*v == T::default());
         v.write(self.w);
         Ok(())
@@ -469,7 +490,11 @@ impl Visitor for FillVisitor {
         Ok(())
     }
 
-    fn plain<T: Pod + Default + PartialEq>(&mut self, _name: &'static str, v: &mut T) -> Result<()> {
+    fn plain<T: Pod + Default + PartialEq>(
+        &mut self,
+        _name: &'static str,
+        v: &mut T,
+    ) -> Result<()> {
         *v = T::sample(self.next());
         Ok(())
     }
@@ -529,7 +554,8 @@ pub(crate) trait Visit: Default + Clone {
     /// A body for the given version with every value set and one element in every list.
     fn sample(version: i32) -> Box<Self> {
         let mut data = Box::<Self>::default();
-        data.visit(&mut FillVisitor::default(), version).expect("the fill visitor doesn't fail");
+        data.visit(&mut FillVisitor::default(), version)
+            .expect("the fill visitor doesn't fail");
         data
     }
 
@@ -539,7 +565,9 @@ pub(crate) trait Visit: Default + Clone {
             _ => None,
         };
         let mut v = WriteVisitor::new(w, cut);
-        self.clone().visit(&mut v, version).expect("the write visitor doesn't fail");
+        self.clone()
+            .visit(&mut v, version)
+            .expect("the write visitor doesn't fail");
         if let Some(pos) = v.cut_pos {
             w.truncate(pos);
         }
@@ -564,7 +592,9 @@ mod tests {
         for &(id, _) in NAMES {
             let id = ComponentId(id);
             for version in 0..=64 {
-                let Some(data) = ComponentData::sample(id, version) else { continue };
+                let Some(data) = ComponentData::sample(id, version) else {
+                    continue;
+                };
                 let mut w = Writer::new();
                 data.write(&mut w, version, &BodyEnd::Complete);
                 let bytes = w.finish();

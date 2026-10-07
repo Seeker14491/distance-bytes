@@ -15,7 +15,10 @@ impl Visit for TriggerCooldownLogic {
 
     fn visit(&mut self, v: &mut impl Visitor, version: i32) -> Result<()> {
         if version >= 1 {
-            v.value("includeInTrackCalculation_", &mut self.include_in_track_calculation)?;
+            v.value(
+                "includeInTrackCalculation_",
+                &mut self.include_in_track_calculation,
+            )?;
         }
         Ok(())
     }

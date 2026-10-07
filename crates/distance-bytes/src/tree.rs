@@ -6,12 +6,12 @@ use std::cell::RefCell;
 
 use crate::component_id::ComponentId;
 use crate::components::ComponentData;
-use crate::legacy_settings::LegacyLevelSettings;
-use crate::visit::{BodyEnd, Visit};
 use crate::error::{ErrorKind, Result};
 use crate::fields::{Field, FieldFormat, read_fields, write_fields};
 use crate::io::{Reader, TraceEvent, Writer, mark};
+use crate::legacy_settings::LegacyLevelSettings;
 use crate::string::DString;
+use crate::visit::{BodyEnd, Visit};
 
 /// The root of a `.bytes` file.
 #[derive(Debug, Clone, PartialEq)]
@@ -37,7 +37,9 @@ impl BytesFile {
     fn read_from(mut r: Reader) -> Result<Self> {
         let file = match r.peek_i32() {
             Some(mark::LEVEL) => BytesFile::Level(Level::read(&mut r)?),
-            Some(mark::GAME_OBJECT) => BytesFile::GameObject(GameObject::read(&mut r, FieldFormat::EndOffsets)?),
+            Some(mark::GAME_OBJECT) => {
+                BytesFile::GameObject(GameObject::read(&mut r, FieldFormat::EndOffsets)?)
+            }
             Some(other) => return Err(r.error(ErrorKind::UnknownRoot(other))),
             None => return Err(r.error(ErrorKind::UnexpectedEnd { needed: 4 })),
         };
@@ -98,7 +100,10 @@ impl Level {
         let layer_count = s.count()?;
         let version = s.i32()?;
         let settings = if version >= 2 {
-            LevelSettingsData::GameObject(GameObject::read(&mut s, FieldFormat::for_level(version))?)
+            LevelSettingsData::GameObject(GameObject::read(
+                &mut s,
+                FieldFormat::for_level(version),
+            )?)
         } else {
             let (_, mut ls) = s.scope(&[mark::LEGACY_LEVEL_SETTINGS])?;
             let version = ls.i32()?;
@@ -112,7 +117,12 @@ impl Level {
             .map(|_| Layer::read(&mut s, version))
             .collect::<Result<_>>()?;
         s.expect_end()?;
-        Ok(Level { name, version, settings, layers })
+        Ok(Level {
+            name,
+            version,
+            settings,
+            layers,
+        })
     }
 
     pub fn write(&self, w: &mut Writer) {
@@ -121,14 +131,20 @@ impl Level {
             w.count(self.layers.len());
             w.i32(self.version);
             match &self.settings {
-                LevelSettingsData::GameObject(obj) => obj.write(w, FieldFormat::for_level(self.version)),
-                LevelSettingsData::Legacy { version, body } => w.scope(mark::LEGACY_LEVEL_SETTINGS, |w| {
-                    w.i32(*version);
-                    match body {
-                        LegacySettingsBody::Data { data, end } => data.write_body(w, *version, end),
-                        LegacySettingsBody::Raw(bytes) => w.bytes(bytes),
-                    }
-                }),
+                LevelSettingsData::GameObject(obj) => {
+                    obj.write(w, FieldFormat::for_level(self.version))
+                }
+                LevelSettingsData::Legacy { version, body } => {
+                    w.scope(mark::LEGACY_LEVEL_SETTINGS, |w| {
+                        w.i32(*version);
+                        match body {
+                            LegacySettingsBody::Data { data, end } => {
+                                data.write_body(w, *version, end)
+                            }
+                            LegacySettingsBody::Raw(bytes) => w.bytes(bytes),
+                        }
+                    })
+                }
             }
             for layer in &self.layers {
                 layer.write(w, self.version);
@@ -149,17 +165,32 @@ pub enum LayerFlags {
     /// Levels before version 3 have no layer flags.
     Absent,
     /// Layer version 0.
-    V0 { unfrozen: bool, active: bool, visible: bool },
+    V0 {
+        unfrozen: bool,
+        active: bool,
+        visible: bool,
+    },
     /// Layer version 1 (the game reads any version >= 1 this way).
-    V1 { version: i32, active: bool, frozen: bool, visible: bool, is_background: bool },
+    V1 {
+        version: i32,
+        active: bool,
+        frozen: bool,
+        visible: bool,
+        is_background: bool,
+    },
     /// A negative layer version: no flags follow.
     None { version: i32 },
 }
 
 impl LayerFlags {
     /// The flags of a new layer in the game.
-    pub const DEFAULT: LayerFlags =
-        LayerFlags::V1 { version: 1, active: false, frozen: false, visible: true, is_background: false };
+    pub const DEFAULT: LayerFlags = LayerFlags::V1 {
+        version: 1,
+        active: false,
+        frozen: false,
+        visible: true,
+        is_background: false,
+    };
 }
 
 impl Layer {
@@ -171,7 +202,11 @@ impl Layer {
             LayerFlags::Absent
         } else {
             match s.i32()? {
-                0 => LayerFlags::V0 { unfrozen: s.bool()?, active: s.bool()?, visible: s.bool()? },
+                0 => LayerFlags::V0 {
+                    unfrozen: s.bool()?,
+                    active: s.bool()?,
+                    visible: s.bool()?,
+                },
                 v @ 1.. => LayerFlags::V1 {
                     version: v,
                     active: s.bool()?,
@@ -186,7 +221,11 @@ impl Layer {
             .map(|_| GameObject::read(&mut s, FieldFormat::for_level(level_version)))
             .collect::<Result<_>>()?;
         s.expect_end()?;
-        Ok(Layer { name, flags, objects })
+        Ok(Layer {
+            name,
+            flags,
+            objects,
+        })
     }
 
     fn write(&self, w: &mut Writer, level_version: i32) {
@@ -202,13 +241,23 @@ impl Layer {
                 };
                 match flags {
                     LayerFlags::Absent => unreachable!(),
-                    LayerFlags::V0 { unfrozen, active, visible } => {
+                    LayerFlags::V0 {
+                        unfrozen,
+                        active,
+                        visible,
+                    } => {
                         w.i32(0);
                         for b in [unfrozen, active, visible] {
                             w.u8(b.into());
                         }
                     }
-                    LayerFlags::V1 { version, active, frozen, visible, is_background } => {
+                    LayerFlags::V1 {
+                        version,
+                        active,
+                        frozen,
+                        visible,
+                        is_background,
+                    } => {
                         w.i32(version);
                         for b in [active, frozen, visible, is_background] {
                             w.u8(b.into());
@@ -242,10 +291,16 @@ impl GameObject {
         let prefab = s.string()?;
         let guid = s.u32()?;
         let count = s.count()?;
-        let components =
-            (0..count).map(|_| Component::read(&mut s, format)).collect::<Result<_>>()?;
+        let components = (0..count)
+            .map(|_| Component::read(&mut s, format))
+            .collect::<Result<_>>()?;
         s.expect_end()?;
-        Ok(GameObject { name, prefab, guid, components })
+        Ok(GameObject {
+            name,
+            prefab,
+            guid,
+            components,
+        })
     }
 
     pub(crate) fn write(&self, w: &mut Writer, format: FieldFormat) {
@@ -334,13 +389,23 @@ impl Component {
         } else {
             let id = ComponentId(s.i32()?);
             let version = s.i32()?;
-            ComponentKind::Known { mark: scope_mark, id, version }
+            ComponentKind::Known {
+                mark: scope_mark,
+                id,
+                version,
+            }
         };
         let guid = s.u32()?;
         // Bodies that don't parse as expected are kept as raw bytes.
         let body = if s.is_empty() {
             ComponentBody::Empty
-        } else if matches!(kind, ComponentKind::Known { id: ComponentId::TRANSFORM, .. }) {
+        } else if matches!(
+            kind,
+            ComponentKind::Known {
+                id: ComponentId::TRANSFORM,
+                ..
+            }
+        ) {
             match s.attempt(|s| Transform::read(s, format)) {
                 Ok(transform) => ComponentBody::Transform(transform),
                 Err(_) => ComponentBody::Raw(s.rest().to_vec()),
@@ -390,7 +455,12 @@ impl Component {
 }
 
 /// Reads the non-empty body of a component of a known type.
-fn read_known_body(s: &mut Reader, id: ComponentId, version: i32, format: FieldFormat) -> ComponentBody {
+fn read_known_body(
+    s: &mut Reader,
+    id: ComponentId,
+    version: i32,
+    format: FieldFormat,
+) -> ComponentBody {
     if ComponentData::decodes(id, version)
         && let Ok((data, end)) = s.attempt(|s| ComponentData::read(s, id, version))
     {
@@ -412,11 +482,17 @@ impl Transform {
         let scale = r.optional(Reader::f32s::<3>)?;
         let (_, mut s) = r.scope(&[mark::CHILDREN])?;
         let count = s.count()?;
-        let children =
-            (0..count).map(|_| GameObject::read(&mut s, format)).collect::<Result<_>>()?;
+        let children = (0..count)
+            .map(|_| GameObject::read(&mut s, format))
+            .collect::<Result<_>>()?;
         s.expect_end()?;
         r.expect_end()?;
-        Ok(Transform { position, rotation, scale, children })
+        Ok(Transform {
+            position,
+            rotation,
+            scale,
+            children,
+        })
     }
 
     fn write(&self, w: &mut Writer, format: FieldFormat) {

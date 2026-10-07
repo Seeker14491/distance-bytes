@@ -15,7 +15,10 @@ impl Visit for ShadowsChangedListener {
 
     fn visit(&mut self, v: &mut impl Visitor, version: i32) -> Result<()> {
         if version >= 0 {
-            v.value("overrideShadowsOffIntensity_", &mut self.override_shadows_off_intensity)?;
+            v.value(
+                "overrideShadowsOffIntensity_",
+                &mut self.override_shadows_off_intensity,
+            )?;
             v.value("shadowsOffIntensity_", &mut self.shadows_off_intensity)?;
         }
         Ok(())

@@ -27,7 +27,10 @@ impl Visit for TrackSegment {
                 v.value("UpdateAllLinks", &mut self.update_all_links)?;
             }
             3 => {
-                v.value("Include In Track Calculation", &mut self.include_in_track_calculation)?;
+                v.value(
+                    "Include In Track Calculation",
+                    &mut self.include_in_track_calculation,
+                )?;
             }
             _ => {}
         }

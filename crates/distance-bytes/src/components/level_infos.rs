@@ -61,7 +61,10 @@ impl LevelInfo {
         if version >= 0 {
             v.value("LevelName", &mut self.level_name)?;
             v.value("RelativePath", &mut self.relative_path)?;
-            v.value("FileNameWithoutExtension", &mut self.file_name_without_extension)?;
+            v.value(
+                "FileNameWithoutExtension",
+                &mut self.file_name_without_extension,
+            )?;
             v.value("LevelVersionDateTime", &mut self.level_version_date_time)?;
             v.value("FileLastWriteDateTime", &mut self.file_last_write_date_time)?;
             v.dictionary("Modes", &mut self.modes, |v, (mode, enabled)| {
@@ -103,6 +106,8 @@ impl Visit for LevelInfos {
         let n = v.count("NumberOfLevelInfos", self.level_infos.len())?;
         v.value("LevelInfoVersion", &mut self.level_info_version)?;
         let info_version = self.level_info_version.unwrap_or(LevelInfo::VERSION);
-        v.records(n, &mut self.level_infos, |v, info| info.visit(v, info_version))
+        v.records(n, &mut self.level_infos, |v, info| {
+            info.visit(v, info_version)
+        })
     }
 }

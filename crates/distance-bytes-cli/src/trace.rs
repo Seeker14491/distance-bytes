@@ -36,7 +36,10 @@ pub struct GameEvent {
 pub fn event_json(e: &TraceEvent) -> String {
     let (t, v) = match &e.value {
         TraceValue::Scope { mark, len } => {
-            return format!(r#"{{"o":{},"l":{},"t":"scope","mark":{mark},"len":{len}}}"#, e.offset, e.len);
+            return format!(
+                r#"{{"o":{},"l":{},"t":"scope","mark":{mark},"len":{len}}}"#,
+                e.offset, e.len
+            );
         }
         TraceValue::Int(v) => ("int", v.to_string()),
         TraceValue::UInt(v) => ("uint", v.to_string()),
@@ -125,7 +128,11 @@ pub fn check(data: &[u8], game: &[GameEvent], max_mismatches: usize) -> Result<C
             "result" => game_ok = e.ok == Some(true),
             "skip" => {
                 let end = e.end.unwrap_or(0);
-                let what = if e.o > end { "overstepped, back" } else { "skipped" };
+                let what = if e.o > end {
+                    "overstepped, back"
+                } else {
+                    "skipped"
+                };
                 game_skips.push(format!("{:#x}: {what} to {end:#x}", e.o));
             }
             _ if e.overread => {}
@@ -162,12 +169,26 @@ pub fn check(data: &[u8], game: &[GameEvent], max_mismatches: usize) -> Result<C
     }
 
     let game_bytes = game_read.iter().filter(|&&b| b).count();
-    let decoded_game_bytes = game_read.iter().zip(&decoded).filter(|&(&g, &d)| g && d).count();
-    Ok(CheckReport { game_ok, mismatches, not_read_by_game, game_skips, game_bytes, decoded_game_bytes })
+    let decoded_game_bytes = game_read
+        .iter()
+        .zip(&decoded)
+        .filter(|&(&g, &d)| g && d)
+        .count();
+    Ok(CheckReport {
+        game_ok,
+        mismatches,
+        not_read_by_game,
+        game_skips,
+        game_bytes,
+        decoded_game_bytes,
+    })
 }
 
 pub fn fetch_game_trace(server: &str, data: &[u8]) -> Result<Vec<GameEvent>> {
-    let endpoint = match data.get(..4).map(|b| i32::from_le_bytes(b.try_into().unwrap())) {
+    let endpoint = match data
+        .get(..4)
+        .map(|b| i32::from_le_bytes(b.try_into().unwrap()))
+    {
         Some(distance_bytes::io::mark::LEVEL) => "level-bytes-trace",
         Some(distance_bytes::io::mark::GAME_OBJECT) => "gameobject-bytes-trace",
         _ => bail!("not a binary .bytes file"),
@@ -189,7 +210,8 @@ pub fn trace_check(files: &[PathBuf], server: &str, max_mismatches: usize) -> Re
     for path in files {
         let data = std::fs::read(path)?;
         let game = fetch_game_trace(server, &data).with_context(|| path.display().to_string())?;
-        let report = check(&data, &game, max_mismatches).with_context(|| path.display().to_string())?;
+        let report =
+            check(&data, &game, max_mismatches).with_context(|| path.display().to_string())?;
         total_game += report.game_bytes;
         total_decoded += report.decoded_game_bytes;
         let pct = 100.0 * report.decoded_game_bytes as f64 / report.game_bytes.max(1) as f64;
@@ -217,5 +239,9 @@ pub fn trace_check(files: &[PathBuf], server: &str, max_mismatches: usize) -> Re
         files.len(),
         100.0 * total_decoded as f64 / total_game.max(1) as f64
     );
-    if failed > 0 { std::process::exit(1) } else { Ok(()) }
+    if failed > 0 {
+        std::process::exit(1)
+    } else {
+        Ok(())
+    }
 }

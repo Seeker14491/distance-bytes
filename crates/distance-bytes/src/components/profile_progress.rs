@@ -69,10 +69,15 @@ impl LevelProgress {
 
     fn visit(&mut self, v: &mut impl Visitor, version: i32) -> Result<()> {
         if version >= 0 {
-            v.value("LastPlayedLevelVersion", &mut self.last_played_level_version)?;
+            v.value(
+                "LastPlayedLevelVersion",
+                &mut self.last_played_level_version,
+            )?;
             v.value("PromptedToVoteOnLevel", &mut self.prompted_to_vote_on_level)?;
             v.array("Medals", &mut self.medals, |v, m| v.value("Medals", m))?;
-            v.array("TopResults", &mut self.top_results, |v, r| v.value("TopResults", r))?;
+            v.array("TopResults", &mut self.top_results, |v, r| {
+                v.value("TopResults", r)
+            })?;
         }
         if version >= 1 {
             v.value("TimeLastPlayed", &mut self.time_last_played)?;
@@ -85,7 +90,9 @@ impl ProfileProgress {
     fn visit_level_progress(&mut self, v: &mut impl Visitor) -> Result<()> {
         let n = v.count("LevelProgressCount", self.level_progress.len())?;
         v.value("ProgressVersion", &mut self.level_progress_version)?;
-        let progress_version = self.level_progress_version.unwrap_or(LevelProgress::VERSION);
+        let progress_version = self
+            .level_progress_version
+            .unwrap_or(LevelProgress::VERSION);
         v.records(n, &mut self.level_progress, |v, (path, progress)| {
             v.value("RelativeLevelPath", path)?;
             progress.visit(v, progress_version)
@@ -93,7 +100,9 @@ impl ProfileProgress {
     }
 
     fn visit_unlocked_levels(&mut self, v: &mut impl Visitor) -> Result<()> {
-        v.array("UnlockedLevels", &mut self.unlocked_levels, |v, l| v.value("UnlockedLevels", l))
+        v.array("UnlockedLevels", &mut self.unlocked_levels, |v, l| {
+            v.value("UnlockedLevels", l)
+        })
     }
 }
 
@@ -120,24 +129,39 @@ impl Visit for ProfileProgress {
             v.value("TotalMedalCount", &mut self.total_medal_count)?;
             v.value("AdventureIndex", &mut self.adventure_index)?;
             v.value("FinishedAdventureCount", &mut self.finished_adventure_count)?;
-            v.value("TotalLevelsAttemptedCount", &mut self.total_levels_attempted_count)?;
-            v.value("TotalLevelsFinishedCount", &mut self.total_levels_finished_count)?;
+            v.value(
+                "TotalLevelsAttemptedCount",
+                &mut self.total_levels_attempted_count,
+            )?;
+            v.value(
+                "TotalLevelsFinishedCount",
+                &mut self.total_levels_finished_count,
+            )?;
         }
         if version >= 3 {
-            v.array("CompletedTricks", &mut self.completed_tricks, |v, t| v.value("CompletedTricks", t))?;
+            v.array("CompletedTricks", &mut self.completed_tricks, |v, t| {
+                v.value("CompletedTricks", t)
+            })?;
         }
         if version >= 4 {
-            v.array("UnlockedAdventureLevels", &mut self.unlocked_adventure_levels, |v, l| {
-                v.value("UnlockedAdventureLevels", l)
-            })?;
-            v.value("FinishedLostToEchoesCount", &mut self.finished_lost_to_echoes_count)?;
+            v.array(
+                "UnlockedAdventureLevels",
+                &mut self.unlocked_adventure_levels,
+                |v, l| v.value("UnlockedAdventureLevels", l),
+            )?;
+            v.value(
+                "FinishedLostToEchoesCount",
+                &mut self.finished_lost_to_echoes_count,
+            )?;
         }
         if version >= 5 {
             v.value("UnlockedCampaignPlus", &mut self.unlocked_campaign_plus)?;
             v.value("UnlockedLostToEchoes", &mut self.unlocked_lost_to_echoes)?;
         }
         if version >= 6 {
-            v.array("UnseenLevels", &mut self.unseen_levels, |v, l| v.value("UnseenLevels", l))?;
+            v.array("UnseenLevels", &mut self.unseen_levels, |v, l| {
+                v.value("UnseenLevels", l)
+            })?;
             v.value("ShowCampaignPlusDot", &mut self.show_campaign_plus_dot)?;
         }
         if version >= 7 {

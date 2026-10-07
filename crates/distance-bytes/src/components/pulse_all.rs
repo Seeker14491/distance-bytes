@@ -56,7 +56,10 @@ impl Visit for PulseAll {
             v.value("Pulse to", &mut self.pulse_to)?;
             v.value("MIDI Channel", &mut self.midi_channel)?;
             v.value("Beat Dim Speed", &mut self.beat_dim_speed)?;
-            v.value("Interval Pulse Frequency", &mut self.interval_pulse_frequency)?;
+            v.value(
+                "Interval Pulse Frequency",
+                &mut self.interval_pulse_frequency,
+            )?;
             if version >= 3 {
                 v.value("Interval Offset", &mut self.interval_offset)?;
             }
@@ -67,11 +70,20 @@ impl Visit for PulseAll {
             v.value("PulseCore Channel", &mut self.pulse_core_channel)?;
             v.value("Pulse Materials", &mut self.pulse_materials)?;
             v.value("Material Property", &mut self.material_property)?;
-            v.value("Minimum Material Brightness", &mut self.minimum_material_brightness)?;
+            v.value(
+                "Minimum Material Brightness",
+                &mut self.minimum_material_brightness,
+            )?;
             v.value("Pulse Lights", &mut self.pulse_lights)?;
-            v.value("Minimum Light Brightness", &mut self.minimum_light_brightness)?;
+            v.value(
+                "Minimum Light Brightness",
+                &mut self.minimum_light_brightness,
+            )?;
             v.value("Pulse Particles", &mut self.pulse_particles)?;
-            v.value("Minimum Particles Brightness", &mut self.minimum_particles_brightness)?;
+            v.value(
+                "Minimum Particles Brightness",
+                &mut self.minimum_particles_brightness,
+            )?;
         }
         Ok(())
     }

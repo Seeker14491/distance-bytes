@@ -16,7 +16,10 @@ impl Visit for SplineSegment {
 
     fn visit(&mut self, v: &mut impl Visitor, version: i32) -> Result<()> {
         if version == 1 {
-            v.value("Include In Track Calculation", &mut self.include_in_track_calculation)?;
+            v.value(
+                "Include In Track Calculation",
+                &mut self.include_in_track_calculation,
+            )?;
         }
         Ok(())
     }

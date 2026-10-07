@@ -22,7 +22,10 @@ impl Visit for CarScreenImageTrigger {
         if version >= 0 {
             v.value("Image", &mut self.image)?;
             if version >= 1 {
-                v.value("Show When Inside Trigger", &mut self.show_when_inside_trigger)?;
+                v.value(
+                    "Show When Inside Trigger",
+                    &mut self.show_when_inside_trigger,
+                )?;
             }
             v.value("Time Visible", &mut self.time_visible)?;
             v.value("Delay", &mut self.delay)?;

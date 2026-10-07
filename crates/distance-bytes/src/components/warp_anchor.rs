@@ -174,9 +174,15 @@ impl Visit for WarpAnchor {
             v.value("GlitchDuring", &mut self.glitch_during)?;
             v.value("GlitchDuringDelay", &mut self.glitch_during_delay)?;
             v.value("ShakeDuringDelay", &mut self.shake_during_delay)?;
-            v.value("ShakeDuringDelayStrength", &mut self.shake_during_delay_strength)?;
+            v.value(
+                "ShakeDuringDelayStrength",
+                &mut self.shake_during_delay_strength,
+            )?;
             v.value("EmpRadius", &mut self.emp_radius)?;
-            v.value("DelayBeforeTurningOnAfterEMP", &mut self.delay_before_turning_on_after_emp)?;
+            v.value(
+                "DelayBeforeTurningOnAfterEMP",
+                &mut self.delay_before_turning_on_after_emp,
+            )?;
             v.value("AddNoise", &mut self.add_noise)?;
             v.value("SnapToExit", &mut self.snap_to_exit)?;
             v.value("DelayOtherID", &mut self.delay_other_id)?;
@@ -186,8 +192,14 @@ impl Visit for WarpAnchor {
             v.value("DelayForDelayWarp", &mut self.delay_for_delay_warp)?;
             v.value("GlitchDuringDelayWarp", &mut self.glitch_during_delay_warp)?;
             v.value("VhsDuringDelayWarp", &mut self.vhs_during_delay_warp)?;
-            v.value("AudioEventDuringDelayWarp", &mut self.audio_event_during_delay_warp)?;
-            v.value("AudioEventAfterDelayWarp", &mut self.audio_event_after_delay_warp)?;
+            v.value(
+                "AudioEventDuringDelayWarp",
+                &mut self.audio_event_during_delay_warp,
+            )?;
+            v.value(
+                "AudioEventAfterDelayWarp",
+                &mut self.audio_event_after_delay_warp,
+            )?;
             v.value("AudioEventBefore", &mut self.audio_event_before)?;
             v.value("AudioEventDuring", &mut self.audio_event_during)?;
             v.value("AudioEventAfter", &mut self.audio_event_after)?;
@@ -209,7 +221,10 @@ impl Visit for WarpAnchor {
             v.value("OneTimeUse", &mut self.one_time_use)?;
         }
         if (6..10).contains(&version) {
-            v.value("FilterColorsDuringGlitch", &mut self.filter_colors_during_glitch)?;
+            v.value(
+                "FilterColorsDuringGlitch",
+                &mut self.filter_colors_during_glitch,
+            )?;
         }
         if (7..10).contains(&version) {
             v.value("CarTimerStateBefore", &mut self.car_timer_state_before)?;
@@ -252,14 +267,20 @@ impl Visit for WarpAnchor {
             v.value("DelayTimeScale", &mut self.delay_time_scale)?;
             v.value("GlitchDuringDelay", &mut self.glitch_during_delay)?;
             v.value("ShakeDuringDelay", &mut self.shake_during_delay)?;
-            v.value("ShakeDuringDelayStrength", &mut self.shake_during_delay_strength)?;
+            v.value(
+                "ShakeDuringDelayStrength",
+                &mut self.shake_during_delay_strength,
+            )?;
             v.value("ConnectToArchaic", &mut self.connect_to_archaic)?;
             v.value("ArchaicID", &mut self.archaic_id)?;
             v.value("ActionIndexBefore", &mut self.action_index_before)?;
             v.value("ActionIndexDuring", &mut self.action_index_during)?;
             v.value("ActionIndexAfter", &mut self.action_index_after)?;
             v.value("ArchaicTractorBeam", &mut self.archaic_tractor_beam)?;
-            v.value("ArchaicTractorBeamTime", &mut self.archaic_tractor_beam_time)?;
+            v.value(
+                "ArchaicTractorBeamTime",
+                &mut self.archaic_tractor_beam_time,
+            )?;
             v.value("TransitionEffect", &mut self.transition_effect)?;
             v.value("EnableCorruptionEffect", &mut self.enable_corruption_effect)?;
             if version >= 14 {
@@ -283,7 +304,10 @@ impl Visit for WarpAnchor {
             v.value("GlitchScale", &mut self.glitch_scale)?;
             v.value("Enable EMP After Warp", &mut self.enable_emp_after_warp)?;
             v.value("EMP Radius", &mut self.emp_radius)?;
-            v.value("DelayBeforeTurningOnAfterEMP", &mut self.delay_before_turning_on_after_emp)?;
+            v.value(
+                "DelayBeforeTurningOnAfterEMP",
+                &mut self.delay_before_turning_on_after_emp,
+            )?;
             v.value("EMPSelectionRandomness", &mut self.emp_selection_randomness)?;
             v.value("AudioHighPassDuring", &mut self.audio_high_pass_during)?;
             v.value("AudioLowPassAfter", &mut self.audio_low_pass_after)?;
@@ -296,7 +320,10 @@ impl Visit for WarpAnchor {
             v.value("CarTimerStateAfter", &mut self.car_timer_state_after)?;
         }
         if version >= 12 {
-            v.value("ShowCountdownAndGPSAfter", &mut self.show_countdown_and_gps_after)?;
+            v.value(
+                "ShowCountdownAndGPSAfter",
+                &mut self.show_countdown_and_gps_after,
+            )?;
         }
         if version >= 13 {
             v.value("SnapCountdownToTime", &mut self.snap_countdown_to_time)?;

@@ -47,7 +47,10 @@ mod tests {
     #[test]
     fn names() {
         assert_eq!(ComponentId::TRANSFORM.name(), Some("Transform"));
-        assert_eq!(ComponentId::from_name("TeleporterEntrance").map(|id| id.name()), Some(Some("TeleporterEntrance")));
+        assert_eq!(
+            ComponentId::from_name("TeleporterEntrance").map(|id| id.name()),
+            Some(Some("TeleporterEntrance"))
+        );
         assert_eq!(ComponentId(100_000).name(), None);
     }
 }

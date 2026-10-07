@@ -74,7 +74,11 @@ impl Visit for CarReplayData {
         v.value("Glow", &mut car.colors.glow)?;
         v.value("Sparkle", &mut car.colors.sparkle)?;
 
-        v.array("PlayerEventVersions", &mut self.player_event_versions, |v, x| v.value("PlayerEventVersions", x))?;
+        v.array(
+            "PlayerEventVersions",
+            &mut self.player_event_versions,
+            |v, x| v.value("PlayerEventVersions", x),
+        )?;
         v.bytes("EventBuffer", &mut self.event_buffer)?;
         if version >= 5 {
             v.bytes("transformBuffer", &mut self.transform_buffer)?;

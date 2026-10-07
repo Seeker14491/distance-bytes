@@ -155,7 +155,10 @@ impl Visit for LevelSettings {
             v.value("LevelEditorCameraPosition", &mut e.camera_position)?;
             v.value("LevelEditorCameraRotation", &mut e.camera_rotation)?;
             v.value("LevelEditorCameraOrthographic", &mut e.camera_orthographic)?;
-            v.value("LevelEditorCameraTargetDistance", &mut e.camera_target_distance)?;
+            v.value(
+                "LevelEditorCameraTargetDistance",
+                &mut e.camera_target_distance,
+            )?;
         }
         Ok(())
     }

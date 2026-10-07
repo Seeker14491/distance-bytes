@@ -25,13 +25,19 @@ impl Visit for CutsceneManagerLogic {
 
     fn visit(&mut self, v: &mut impl Visitor, version: i32) -> Result<()> {
         if version >= 0 {
-            v.value("TimeToSwitchToNextLevel", &mut self.time_to_switch_to_next_level)?;
+            v.value(
+                "TimeToSwitchToNextLevel",
+                &mut self.time_to_switch_to_next_level,
+            )?;
             v.value("Delay Before Fade In", &mut self.delay_before_fade_in)?;
             v.value("Fade In Time", &mut self.fade_in_time)?;
             v.value("Fade Out Time", &mut self.fade_out_time)?;
             v.value("21:9 Aspect Ratio", &mut self.aspect_ratio_21_9)?;
             if version >= 2 {
-                v.value("eventToTriggerOnStart_", &mut self.event_to_trigger_on_start)?;
+                v.value(
+                    "eventToTriggerOnStart_",
+                    &mut self.event_to_trigger_on_start,
+                )?;
             }
         }
         if version < 3 {

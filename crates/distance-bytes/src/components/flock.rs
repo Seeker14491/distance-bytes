@@ -35,7 +35,10 @@ impl Visit for Flock {
             v.value("AlignmentScalar", &mut self.alignment_scalar)?;
             v.value("SeperationScalar", &mut self.seperation_scalar)?;
             v.value("MaxNeighborDistance", &mut self.max_neighbor_distance)?;
-            v.value("DesiredSeperationDistance", &mut self.desired_seperation_distance)?;
+            v.value(
+                "DesiredSeperationDistance",
+                &mut self.desired_seperation_distance,
+            )?;
             v.value("MaxSpeed", &mut self.max_speed)?;
             v.value("MaxAcceleration", &mut self.max_acceleration)?;
             v.value("Color", &mut self.color)?;

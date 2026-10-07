@@ -32,7 +32,10 @@ impl Visit for TrackLink {
                 v.reference("SegRef", &mut self.seg_ref)?;
                 v.reference("LinkRef", &mut self.link_ref)?;
                 v.value("ManipulatorNodeID", &mut self.manipulator_node_id)?;
-                v.value("ManipulatorNodeShouldBeCreated", &mut self.manipulator_node_should_be_created)?;
+                v.value(
+                    "ManipulatorNodeShouldBeCreated",
+                    &mut self.manipulator_node_should_be_created,
+                )?;
             }
             _ => {}
         }

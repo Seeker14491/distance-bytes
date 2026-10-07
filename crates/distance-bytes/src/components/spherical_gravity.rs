@@ -19,7 +19,10 @@ impl Visit for SphericalGravity {
         if version == 0 {
         } else {
             v.value("gravity_", &mut self.gravity)?;
-            v.value("exclusiveSphericalGravity_", &mut self.exclusive_spherical_gravity)?;
+            v.value(
+                "exclusiveSphericalGravity_",
+                &mut self.exclusive_spherical_gravity,
+            )?;
         }
         Ok(())
     }

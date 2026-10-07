@@ -60,7 +60,10 @@ impl Visit for TurnLightOnNearCar {
             v.value("Play Sound", &mut self.play_sound)?;
         }
         if version >= 5 {
-            v.value("Turn off on Trigger Exit", &mut self.turn_off_on_trigger_exit)?;
+            v.value(
+                "Turn off on Trigger Exit",
+                &mut self.turn_off_on_trigger_exit,
+            )?;
         }
         Ok(())
     }

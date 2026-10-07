@@ -62,7 +62,10 @@ impl Visit for BlinkInTrigger {
             v.value("saturationAnimScale_", &mut self.saturation_anim_scale)?;
             v.value("saturationAmount_", &mut self.saturation_amount)?;
             v.value("useNoiseAndGrain_", &mut self.use_noise_and_grain)?;
-            v.value("noiseAndGrainAnimScale_", &mut self.noise_and_grain_anim_scale)?;
+            v.value(
+                "noiseAndGrainAnimScale_",
+                &mut self.noise_and_grain_anim_scale,
+            )?;
             v.value("noiseAndGrainAmount_", &mut self.noise_and_grain_amount)?;
         }
         Ok(())

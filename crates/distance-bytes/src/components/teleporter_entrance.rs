@@ -27,7 +27,10 @@ impl Visit for TeleporterEntrance {
         }
         v.value("Teleports To", &mut self.teleports_to)?;
         if version >= 3 {
-            v.value("includeInTrackCalculation", &mut self.include_in_track_calculation)?;
+            v.value(
+                "includeInTrackCalculation",
+                &mut self.include_in_track_calculation,
+            )?;
         }
         if version >= 4 {
             v.value("bankID_", &mut self.bank_id)?;

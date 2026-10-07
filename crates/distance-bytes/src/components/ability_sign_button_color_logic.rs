@@ -15,7 +15,10 @@ impl Visit for AbilitySignButtonColorLogic {
 
     fn visit(&mut self, v: &mut impl Visitor, version: i32) -> Result<()> {
         if version >= 1 {
-            v.value("Use Controller Button Color", &mut self.use_controller_button_color)?;
+            v.value(
+                "Use Controller Button Color",
+                &mut self.use_controller_button_color,
+            )?;
         }
         Ok(())
     }

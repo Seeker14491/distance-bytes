@@ -39,7 +39,10 @@ impl Visit for LostToEchoesIntroCutscene {
             v.value("Final Core Color", &mut self.final_core_color)?;
         }
         if version >= 1 {
-            v.value("TimeToSwitchToNextLevel", &mut self.time_to_switch_to_next_level)?;
+            v.value(
+                "TimeToSwitchToNextLevel",
+                &mut self.time_to_switch_to_next_level,
+            )?;
         }
         Ok(())
     }

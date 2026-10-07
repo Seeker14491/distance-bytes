@@ -27,7 +27,10 @@ impl Visit for InfiniteCooldownTrigger {
             v.value("DisableWings", &mut self.disable_wings)?;
         }
         if version >= 1 {
-            v.value("DisableHoverScreenEmitter", &mut self.disable_hover_screen_emitter)?;
+            v.value(
+                "DisableHoverScreenEmitter",
+                &mut self.disable_hover_screen_emitter,
+            )?;
         }
         Ok(())
     }

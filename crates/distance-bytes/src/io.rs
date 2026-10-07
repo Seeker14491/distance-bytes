@@ -44,11 +44,19 @@ pub struct Reader<'a> {
 
 impl<'a> Reader<'a> {
     pub fn new(data: &'a [u8]) -> Self {
-        Reader { data, pos: 0, end: data.len(), trace: None }
+        Reader {
+            data,
+            pos: 0,
+            end: data.len(),
+            trace: None,
+        }
     }
 
     pub fn with_trace(data: &'a [u8], trace: &'a RefCell<Vec<TraceEvent>>) -> Self {
-        Reader { trace: Some(trace), ..Reader::new(data) }
+        Reader {
+            trace: Some(trace),
+            ..Reader::new(data)
+        }
     }
 
     pub fn pos(&self) -> usize {
@@ -76,13 +84,19 @@ impl<'a> Reader<'a> {
         if self.is_empty() {
             Ok(())
         } else {
-            Err(self.error(ErrorKind::TrailingBytes { len: self.remaining() }))
+            Err(self.error(ErrorKind::TrailingBytes {
+                len: self.remaining(),
+            }))
         }
     }
 
     fn record(&self, offset: usize, value: impl FnOnce() -> TraceValue) {
         if let Some(trace) = self.trace {
-            trace.borrow_mut().push(TraceEvent { offset, len: self.pos - offset, value: value() });
+            trace.borrow_mut().push(TraceEvent {
+                offset,
+                len: self.pos - offset,
+                value: value(),
+            });
         }
     }
 
@@ -213,7 +227,10 @@ impl<'a> Reader<'a> {
     }
 
     pub fn peek_i32(&self) -> Option<i32> {
-        let mut copy = Reader { trace: None, ..self.clone() };
+        let mut copy = Reader {
+            trace: None,
+            ..self.clone()
+        };
         copy.i32().ok()
     }
 
@@ -248,7 +265,9 @@ impl<'a> Reader<'a> {
         let start = self.pos;
         let len = self.len_7bit()?;
         let s = DString::from_utf16le_bytes(self.bytes(len)?);
-        self.record(start, || TraceValue::String(s.to_string_lossy().into_owned()));
+        self.record(start, || {
+            TraceValue::String(s.to_string_lossy().into_owned())
+        });
         Ok(s)
     }
 
@@ -267,7 +286,11 @@ impl<'a> Reader<'a> {
     /// If the next value is the empty marker, consumes it and returns `None`; otherwise reads
     /// the value with `f`.
     pub fn optional<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T>) -> Result<Option<T>> {
-        if self.empty_marker() { Ok(None) } else { f(self).map(Some) }
+        if self.empty_marker() {
+            Ok(None)
+        } else {
+            f(self).map(Some)
+        }
     }
 
     /// Returns a reader over the next `len` bytes, and advances this reader past them.
@@ -275,7 +298,10 @@ impl<'a> Reader<'a> {
         if self.remaining() < len {
             return Err(self.error(ErrorKind::UnexpectedEnd { needed: len }));
         }
-        let inner = Reader { end: self.pos + len, ..self.clone() };
+        let inner = Reader {
+            end: self.pos + len,
+            ..self.clone()
+        };
         self.pos += len;
         Ok(inner)
     }
@@ -286,7 +312,13 @@ impl<'a> Reader<'a> {
         let start = self.pos;
         let mark = i32::from_le_bytes(self.array()?);
         if !expected.is_empty() && !expected.contains(&mark) {
-            return Err(Error::new(start, ErrorKind::UnexpectedMark { expected, found: mark }));
+            return Err(Error::new(
+                start,
+                ErrorKind::UnexpectedMark {
+                    expected,
+                    found: mark,
+                },
+            ));
         }
         let len_pos = self.pos;
         let len = i64::from_le_bytes(self.array()?);
@@ -295,7 +327,11 @@ impl<'a> Reader<'a> {
             .filter(|&l| l <= self.remaining())
             .ok_or(Error::new(len_pos, ErrorKind::InvalidScopeLength(len)))?;
         self.record(start, || TraceValue::Scope { mark, len });
-        let inner = Reader { pos: self.pos, end: self.pos + len_usize, ..self.clone() };
+        let inner = Reader {
+            pos: self.pos,
+            end: self.pos + len_usize,
+            ..self.clone()
+        };
         self.pos += len_usize;
         Ok((mark, inner))
     }
@@ -312,7 +348,10 @@ pub struct TraceEvent {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TraceValue {
     /// A scope header (mark and length).
-    Scope { mark: i32, len: i64 },
+    Scope {
+        mark: i32,
+        len: i64,
+    },
     Int(i32),
     UInt(u32),
     Short(i16),
@@ -349,7 +388,10 @@ impl Writer {
 
     /// Removes everything written after `pos`, which must not be inside a scope begun since.
     pub(crate) fn truncate(&mut self, pos: usize) {
-        assert!(self.scopes.last().is_none_or(|&s| s < pos), "truncating into an open scope");
+        assert!(
+            self.scopes.last().is_none_or(|&s| s < pos),
+            "truncating into an open scope"
+        );
         self.buf.truncate(pos);
     }
 
@@ -496,8 +538,15 @@ mod tests {
 
     #[test]
     fn len_7bit_rejects_overlong() {
-        for bytes in [&[0x80, 0x00][..], &[0xFF, 0xFF, 0xFF, 0xFF, 0x08], &[0x80, 0x80, 0x80, 0x80, 0x80]] {
-            assert_eq!(Reader::new(bytes).len_7bit().unwrap_err().kind, ErrorKind::InvalidLength);
+        for bytes in [
+            &[0x80, 0x00][..],
+            &[0xFF, 0xFF, 0xFF, 0xFF, 0x08],
+            &[0x80, 0x80, 0x80, 0x80, 0x80],
+        ] {
+            assert_eq!(
+                Reader::new(bytes).len_7bit().unwrap_err().kind,
+                ErrorKind::InvalidLength
+            );
         }
     }
 

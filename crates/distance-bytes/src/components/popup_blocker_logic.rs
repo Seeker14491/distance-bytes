@@ -36,7 +36,10 @@ impl Visit for PopupBlockerLogic {
             v.value("PopUpSpeed", &mut self.pop_up_speed)?;
         }
         if version >= 2 {
-            v.value("BlockerHeightMultiplier", &mut self.blocker_height_multiplier)?;
+            v.value(
+                "BlockerHeightMultiplier",
+                &mut self.blocker_height_multiplier,
+            )?;
         }
         Ok(())
     }

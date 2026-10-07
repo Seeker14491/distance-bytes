@@ -85,7 +85,10 @@ impl PlayerStats {
             v.value("MetersDrivenForward", &mut self.meters_driven_forward)?;
             v.value("MetersDrivenReverse", &mut self.meters_driven_reverse)?;
             v.value("MetersAirborneFlying", &mut self.meters_airborne_flying)?;
-            v.value("MetersAirborneNotFlying", &mut self.meters_airborne_not_flying)?;
+            v.value(
+                "MetersAirborneNotFlying",
+                &mut self.meters_airborne_not_flying,
+            )?;
             v.value("MetersWallRiding", &mut self.meters_wall_riding)?;
             v.value("MetersCeilingRiding", &mut self.meters_ceiling_riding)?;
             v.value("MetersGrinding", &mut self.meters_grinding)?;
@@ -105,10 +108,22 @@ impl PlayerStats {
             v.value("BrokenEggCount", &mut self.broken_egg_count)?;
         }
         if version >= 1 {
-            v.value("TopSpeedMetersPerSecond", &mut self.top_speed_meters_per_second)?;
-            v.value("TopForwardSpeedMetersPerSecond", &mut self.top_forward_speed_meters_per_second)?;
-            v.value("TopReverseSpeedMetersPerSecond", &mut self.top_reverse_speed_meters_per_second)?;
-            v.value("CooldownTriggerHitCount", &mut self.cooldown_trigger_hit_count)?;
+            v.value(
+                "TopSpeedMetersPerSecond",
+                &mut self.top_speed_meters_per_second,
+            )?;
+            v.value(
+                "TopForwardSpeedMetersPerSecond",
+                &mut self.top_forward_speed_meters_per_second,
+            )?;
+            v.value(
+                "TopReverseSpeedMetersPerSecond",
+                &mut self.top_reverse_speed_meters_per_second,
+            )?;
+            v.value(
+                "CooldownTriggerHitCount",
+                &mut self.cooldown_trigger_hit_count,
+            )?;
         }
         Ok(())
     }
@@ -124,14 +139,28 @@ impl Visit for ProfileStats {
         v.value("TotalPlayTime", &mut self.total_play_time)?;
         v.value("LevelEditorWorkTime", &mut self.level_editor_work_time)?;
         v.value("LevelEditorPlayTime", &mut self.level_editor_play_time)?;
-        v.array("SoloModePlayTimes", &mut self.solo_mode_play_times, |v, t| v.value("SoloModePlayTimes", t))?;
-        v.array("SplitscreenModePlayTimes", &mut self.splitscreen_mode_play_times, |v, t| {
-            v.value("SplitscreenModePlayTimes", t)
-        })?;
-        v.array("OnlineModePlayTimes", &mut self.online_mode_play_times, |v, t| v.value("OnlineModePlayTimes", t))?;
+        v.array(
+            "SoloModePlayTimes",
+            &mut self.solo_mode_play_times,
+            |v, t| v.value("SoloModePlayTimes", t),
+        )?;
+        v.array(
+            "SplitscreenModePlayTimes",
+            &mut self.splitscreen_mode_play_times,
+            |v, t| v.value("SplitscreenModePlayTimes", t),
+        )?;
+        v.array(
+            "OnlineModePlayTimes",
+            &mut self.online_mode_play_times,
+            |v, t| v.value("OnlineModePlayTimes", t),
+        )?;
         if version >= 1 {
             v.value("AdventureStartTime", &mut self.adventure_start_time)?;
-            v.array("TrackmogrifyModifier", &mut self.trackmogrify_modifiers, |v, m| v.value("TrackmogrifyModifier", m))?;
+            v.array(
+                "TrackmogrifyModifier",
+                &mut self.trackmogrify_modifiers,
+                |v, m| v.value("TrackmogrifyModifier", m),
+            )?;
         }
         Ok(())
     }

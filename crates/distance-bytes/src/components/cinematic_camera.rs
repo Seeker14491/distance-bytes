@@ -58,7 +58,10 @@ impl Visit for CinematicCamera {
         }
         if version >= 3 {
             v.value("AnimateOnStart", &mut self.animate_on_start)?;
-            v.value("AnimateFocalPointOnStart", &mut self.animate_focal_point_on_start)?;
+            v.value(
+                "AnimateFocalPointOnStart",
+                &mut self.animate_focal_point_on_start,
+            )?;
         }
         if version >= 4 {
             v.value("BlackFadeInOut", &mut self.black_fade_in_out)?;
