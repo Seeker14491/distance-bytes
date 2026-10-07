@@ -18,7 +18,8 @@ pub mod mark {
     pub const SERIALIZABLE: i32 = 33333333;
     /// A component deriving from the game's `SerialComponent`.
     pub const SERIAL_COMPONENT: i32 = 22222222;
-    /// Accepted by the game's reader as a component, but never written by it.
+    /// Read by the game like [`SERIALIZABLE`]. The current game never writes it, but some Workshop
+    /// levels contain it.
     pub const SERIALIZABLE_ALT: i32 = 32323232;
     pub const UNKNOWN_COMPONENT: i32 = 23232323;
     /// Not a scope: marks the start of an array or list, followed by an `i32` count.
@@ -152,6 +153,28 @@ impl<'a> Reader<'a> {
         Ok(v)
     }
 
+    pub fn i16(&mut self) -> Result<i16> {
+        let start = self.pos;
+        let v = i16::from_le_bytes(self.array()?);
+        self.record(start, || TraceValue::Short(v));
+        Ok(v)
+    }
+
+    pub fn u16(&mut self) -> Result<u16> {
+        let start = self.pos;
+        let v = u16::from_le_bytes(self.array()?);
+        self.record(start, || TraceValue::UShort(v));
+        Ok(v)
+    }
+
+    /// Reads a .NET `char` as written with UTF-16: one code unit.
+    pub fn char(&mut self) -> Result<u16> {
+        let start = self.pos;
+        let v = u16::from_le_bytes(self.array()?);
+        self.record(start, || TraceValue::Char(v));
+        Ok(v)
+    }
+
     pub fn i64(&mut self) -> Result<i64> {
         let start = self.pos;
         let v = i64::from_le_bytes(self.array()?);
@@ -163,6 +186,13 @@ impl<'a> Reader<'a> {
         let start = self.pos;
         let v = f32::from_le_bytes(self.array()?);
         self.record(start, || TraceValue::Float(v.to_bits()));
+        Ok(v)
+    }
+
+    pub fn f64(&mut self) -> Result<f64> {
+        let start = self.pos;
+        let v = f64::from_le_bytes(self.array()?);
+        self.record(start, || TraceValue::Double(v.to_bits()));
         Ok(v)
     }
 
@@ -186,16 +216,21 @@ impl<'a> Reader<'a> {
         usize::try_from(n).map_err(|_| Error::new(start, ErrorKind::NegativeCount(n)))
     }
 
-    /// Reads .NET's 7-bit encoded `Int32`, used as the byte-length prefix of strings.
+    /// Reads .NET's 7-bit encoded `Int32`, used as the byte-length prefix of strings. Only the
+    /// shortest encoding of a non-negative value is accepted, so that reading and writing is
+    /// lossless.
     fn len_7bit(&mut self) -> Result<usize> {
         let start = self.pos;
         let mut value: u32 = 0;
         for i in 0..5 {
             let b = self.array::<1>()?[0];
+            let overlong = i > 0 && b == 0;
+            if overlong || (i == 4 && b > 0x07) {
+                break;
+            }
             value |= u32::from(b & 0x7F) << (7 * i);
             if b & 0x80 == 0 {
-                return usize::try_from(value as i32)
-                    .map_err(|_| Error::new(start, ErrorKind::InvalidLength));
+                return Ok(value as usize);
             }
         }
         Err(Error::new(start, ErrorKind::InvalidLength))
@@ -209,17 +244,32 @@ impl<'a> Reader<'a> {
         Ok(s)
     }
 
-    /// If the next value is the empty marker, consumes it and returns `None`; otherwise reads
-    /// the value with `f`.
-    pub fn optional<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T>) -> Result<Option<T>> {
+    /// If the next value is the empty marker, consumes it and returns true.
+    pub fn empty_marker(&mut self) -> bool {
         if self.peek_i32() == Some(EMPTY_MARKER) {
             let start = self.pos;
             self.pos += 4;
             self.record(start, || TraceValue::Empty);
-            Ok(None)
+            true
         } else {
-            f(self).map(Some)
+            false
         }
+    }
+
+    /// If the next value is the empty marker, consumes it and returns `None`; otherwise reads
+    /// the value with `f`.
+    pub fn optional<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T>) -> Result<Option<T>> {
+        if self.empty_marker() { Ok(None) } else { f(self).map(Some) }
+    }
+
+    /// Returns a reader over the next `len` bytes, and advances this reader past them.
+    pub fn sub(&mut self, len: usize) -> Result<Reader<'a>> {
+        if self.remaining() < len {
+            return Err(self.error(ErrorKind::UnexpectedEnd { needed: len }));
+        }
+        let inner = Reader { end: self.pos + len, ..self.clone() };
+        self.pos += len;
+        Ok(inner)
     }
 
     /// Reads a scope header and returns its mark and a reader over its contents. This reader is
@@ -257,9 +307,14 @@ pub enum TraceValue {
     Scope { mark: i32, len: i64 },
     Int(i32),
     UInt(u32),
+    Short(i16),
+    UShort(u16),
     Long(i64),
     /// The bits of an `f32`.
     Float(u32),
+    /// The bits of an `f64`.
+    Double(u64),
+    Char(u16),
     Bool(bool),
     String(String),
     /// The empty marker.
@@ -303,12 +358,28 @@ impl Writer {
         self.bytes(&v.to_le_bytes());
     }
 
+    pub fn i16(&mut self, v: i16) {
+        self.bytes(&v.to_le_bytes());
+    }
+
+    pub fn u16(&mut self, v: u16) {
+        self.bytes(&v.to_le_bytes());
+    }
+
     pub fn i64(&mut self, v: i64) {
         self.bytes(&v.to_le_bytes());
     }
 
     pub fn f32(&mut self, v: f32) {
         self.bytes(&v.to_le_bytes());
+    }
+
+    pub fn f64(&mut self, v: f64) {
+        self.bytes(&v.to_le_bytes());
+    }
+
+    pub fn empty_marker(&mut self) {
+        self.i32(EMPTY_MARKER);
     }
 
     pub fn f32s(&mut self, v: &[f32]) {
@@ -339,7 +410,7 @@ impl Writer {
     pub fn optional<T>(&mut self, v: Option<&T>, f: impl FnOnce(&mut Self, &T)) {
         match v {
             Some(v) => f(self, v),
-            None => self.i32(EMPTY_MARKER),
+            None => self.empty_marker(),
         }
     }
 
@@ -359,6 +430,17 @@ impl Writer {
         self.begin_scope(mark);
         f(self);
         self.end_scope();
+    }
+
+    /// Writes an `i64` holding the absolute position of the end of what `f` writes, as the game
+    /// does before each generic component field. Positions are from the start of the file, so a
+    /// writer must always start at the beginning of a file.
+    pub fn end_offset(&mut self, f: impl FnOnce(&mut Self)) {
+        let slot = self.buf.len();
+        self.i64(0);
+        f(self);
+        let end = self.buf.len() as i64;
+        self.buf[slot..slot + 8].copy_from_slice(&end.to_le_bytes());
     }
 }
 
@@ -394,6 +476,22 @@ mod tests {
         let (_, mut layer) = inner.scope(&[mark::LAYER]).unwrap();
         assert!(layer.bool().unwrap());
         inner.expect_end().unwrap();
+    }
+
+    #[test]
+    fn len_7bit_rejects_overlong() {
+        for bytes in [&[0x80, 0x00][..], &[0xFF, 0xFF, 0xFF, 0xFF, 0x08], &[0x80, 0x80, 0x80, 0x80, 0x80]] {
+            assert_eq!(Reader::new(bytes).len_7bit().unwrap_err().kind, ErrorKind::InvalidLength);
+        }
+    }
+
+    #[test]
+    fn end_offset_is_absolute() {
+        let mut w = Writer::new();
+        w.u8(0);
+        w.end_offset(|w| w.i32(5));
+        let buf = w.finish();
+        assert_eq!(i64::from_le_bytes(buf[1..9].try_into().unwrap()), 13);
     }
 
     #[test]

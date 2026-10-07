@@ -5,13 +5,13 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 ## Status
 
 - Reads every binary `.bytes` file the game writes into a tree of levels, layers, game objects and components, and writes it back byte-identical. Covers level versions 0–4 and non-level files (custom objects, profiles, leaderboards, replays).
-- Decodes `Transform` components (position, rotation, scale, children). Other component bodies are kept as raw bytes.
+- Decodes `Transform` components (position, rotation, scale, children) and components in the game's generic field format (field names with typed values). The generic format stores absolute file offsets, which are recomputed on write, so objects can be added, removed or moved. Other component bodies are kept as raw bytes.
 
 ## Layout
 
 - `crates/distance-bytes`: the library.
 - `crates/distance-bytes-cli`: the `dbytes` tool.
-- `tools/schema-extract`: generates `schema/components.json` and the Rust `ComponentId` constants from the game's `Assembly-CSharp.dll`.
+- `tools/schema-extract`: generates `schema/components.json`, the Rust `ComponentId` constants and the table of generic field types from the game's `Assembly-CSharp.dll`.
 - `tools/BytesTrace`: a BepInEx plugin that runs the game as an HTTP server and reports every value the game's own deserializer reads, so our decoder can be checked against it.
 
 Game files (`game/`, `game_assets_dump/`) are not part of the repository.
@@ -26,7 +26,8 @@ cargo run --release -p distance-bytes-cli -- <command>
 - `roundtrip <paths>...`: read and re-write every binary `.bytes` file under the paths and check that the output is identical.
 - `stats <paths>...`: statistics about component types and how many bytes are still undecoded.
 - `trace <file>`: every value our decoder reads, as JSON lines.
-- `trace-check <paths>...`: compare our decoder against the game, using the BytesTrace server. It reports mismatches and the share of the game-read bytes that we decode.
+- `relocate <in> <out> [--pad N]`: re-write a level with N characters added to its name, which moves everything after it. Use it with `trace-check` to test that offsets are recomputed.
+- `trace-check <paths>...`: compare our decoder against the game, using the BytesTrace server. It reports mismatches, failed game loads and the share of the game-read bytes that we decode.
 
 ## Tests
 
@@ -34,10 +35,10 @@ cargo run --release -p distance-bytes-cli -- <command>
 cargo test
 ```
 
-The corpus test round-trips every binary `.bytes` file under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows):
+The corpus test round-trips every binary `.bytes` file under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). Use absolute paths, since tests run in the crate directory:
 
 ```bash
-DISTANCE_BYTES_CORPUS="game_assets_dump/Assets/Resources;C:/Users/<you>/Documents/My Games/Distance" cargo test --test corpus
+DISTANCE_BYTES_CORPUS="C:/<repo>/game_assets_dump/Assets/Resources;C:/Users/<you>/Documents/My Games/Distance" cargo test --test corpus
 ```
 
 ## Regenerating the schema

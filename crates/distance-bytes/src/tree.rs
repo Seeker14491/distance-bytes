@@ -1,11 +1,13 @@
 //! The structural tree of a `.bytes` file: levels, layers, game objects and components.
 //!
-//! Component bodies other than `Transform` are kept as raw bytes for now.
+//! Component bodies other than `Transform` and the game's generic field format are kept as raw
+//! bytes for now.
 
 use std::cell::RefCell;
 
 use crate::component_id::ComponentId;
 use crate::error::{ErrorKind, Result};
+use crate::fields::{Field, FieldFormat, read_fields, write_fields};
 use crate::io::{Reader, TraceEvent, Writer, mark};
 use crate::string::DString;
 
@@ -33,7 +35,7 @@ impl BytesFile {
     fn read_from(mut r: Reader) -> Result<Self> {
         let file = match r.peek_i32() {
             Some(mark::LEVEL) => BytesFile::Level(Level::read(&mut r)?),
-            Some(mark::GAME_OBJECT) => BytesFile::GameObject(GameObject::read(&mut r)?),
+            Some(mark::GAME_OBJECT) => BytesFile::GameObject(GameObject::read(&mut r, FieldFormat::EndOffsets)?),
             Some(other) => return Err(r.error(ErrorKind::UnknownRoot(other))),
             None => return Err(r.error(ErrorKind::UnexpectedEnd { needed: 4 })),
         };
@@ -45,7 +47,7 @@ impl BytesFile {
         let mut w = Writer::new();
         match self {
             BytesFile::Level(level) => level.write(&mut w),
-            BytesFile::GameObject(obj) => obj.write(&mut w),
+            BytesFile::GameObject(obj) => obj.write(&mut w, FieldFormat::EndOffsets),
         }
         w.finish()
     }
@@ -75,7 +77,7 @@ impl Level {
         let layer_count = s.count()?;
         let version = s.i32()?;
         let settings = if version >= 2 {
-            LevelSettings::GameObject(GameObject::read(&mut s)?)
+            LevelSettings::GameObject(GameObject::read(&mut s, FieldFormat::for_level(version))?)
         } else {
             let (_, mut ls) = s.scope(&[mark::LEGACY_LEVEL_SETTINGS])?;
             let version = ls.i32()?;
@@ -94,7 +96,7 @@ impl Level {
             w.count(self.layers.len());
             w.i32(self.version);
             match &self.settings {
-                LevelSettings::GameObject(obj) => obj.write(w),
+                LevelSettings::GameObject(obj) => obj.write(w, FieldFormat::for_level(self.version)),
                 LevelSettings::Legacy { version, data } => w.scope(mark::LEGACY_LEVEL_SETTINGS, |w| {
                     w.i32(*version);
                     w.bytes(data);
@@ -153,7 +155,7 @@ impl Layer {
             }
         };
         let objects = (0..object_count)
-            .map(|_| GameObject::read(&mut s))
+            .map(|_| GameObject::read(&mut s, FieldFormat::for_level(level_version)))
             .collect::<Result<_>>()?;
         s.expect_end()?;
         Ok(Layer { name, flags, objects })
@@ -188,7 +190,7 @@ impl Layer {
                 }
             }
             for obj in &self.objects {
-                obj.write(w);
+                obj.write(w, FieldFormat::for_level(level_version));
             }
         });
     }
@@ -206,25 +208,26 @@ pub struct GameObject {
 }
 
 impl GameObject {
-    pub fn read(r: &mut Reader) -> Result<Self> {
+    pub(crate) fn read(r: &mut Reader, format: FieldFormat) -> Result<Self> {
         let (_, mut s) = r.scope(&[mark::GAME_OBJECT])?;
         let name = s.string()?;
         let prefab = s.string()?;
         let guid = s.u32()?;
         let count = s.count()?;
-        let components = (0..count).map(|_| Component::read(&mut s)).collect::<Result<_>>()?;
+        let components =
+            (0..count).map(|_| Component::read(&mut s, format)).collect::<Result<_>>()?;
         s.expect_end()?;
         Ok(GameObject { name, prefab, guid, components })
     }
 
-    pub fn write(&self, w: &mut Writer) {
+    pub(crate) fn write(&self, w: &mut Writer, format: FieldFormat) {
         w.scope(mark::GAME_OBJECT, |w| {
             w.string(&self.name);
             w.string(&self.prefab);
             w.u32(self.guid);
             w.count(self.components.len());
             for c in &self.components {
-                c.write(w);
+                c.write(w, format);
             }
         });
     }
@@ -267,6 +270,9 @@ pub enum ComponentBody {
     /// No data: the component is identical to the prefab's.
     Empty,
     Transform(Transform),
+    /// The game's generic format, used by `SerialComponent`s without a hand-written
+    /// serializer (and by version 0 of most that have one): every field by name.
+    Fields(Vec<Field>),
     /// Not decoded yet.
     Raw(Vec<u8>),
 }
@@ -282,7 +288,7 @@ pub struct Transform {
 }
 
 impl Component {
-    fn read(r: &mut Reader) -> Result<Self> {
+    fn read(r: &mut Reader, format: FieldFormat) -> Result<Self> {
         let (scope_mark, mut s) = r.scope(&[
             mark::SERIALIZABLE,
             mark::SERIAL_COMPONENT,
@@ -297,12 +303,20 @@ impl Component {
             ComponentKind::Known { mark: scope_mark, id, version }
         };
         let guid = s.u32()?;
+        // Bodies that don't parse as expected are kept as raw bytes.
         let body = if s.is_empty() {
             ComponentBody::Empty
         } else if matches!(kind, ComponentKind::Known { id: ComponentId::TRANSFORM, .. }) {
-            // Fall back to raw bytes if the body doesn't parse as a transform.
-            match s.attempt(Transform::read) {
+            match s.attempt(|s| Transform::read(s, format)) {
                 Ok(transform) => ComponentBody::Transform(transform),
+                Err(_) => ComponentBody::Raw(s.rest().to_vec()),
+            }
+        } else if let ComponentKind::Known { id, .. } = kind {
+            // Which components use the generic format isn't known yet, so detect it. The exact
+            // absolute end offsets make a false match practically impossible; without them
+            // (level version 0), every field name must be known and every value must parse.
+            match s.attempt(|s| read_fields(s, id, format)) {
+                Ok(fields) => ComponentBody::Fields(fields),
                 Err(_) => ComponentBody::Raw(s.rest().to_vec()),
             }
         } else {
@@ -311,7 +325,7 @@ impl Component {
         Ok(Component { kind, guid, body })
     }
 
-    fn write(&self, w: &mut Writer) {
+    fn write(&self, w: &mut Writer, format: FieldFormat) {
         let scope_mark = match self.kind {
             ComponentKind::Known { mark, .. } => mark,
             ComponentKind::Unknown { .. } => mark::UNKNOWN_COMPONENT,
@@ -327,7 +341,8 @@ impl Component {
             w.u32(self.guid);
             match &self.body {
                 ComponentBody::Empty => {}
-                ComponentBody::Transform(t) => t.write(w),
+                ComponentBody::Transform(t) => t.write(w, format),
+                ComponentBody::Fields(fields) => write_fields(w, fields, format),
                 ComponentBody::Raw(bytes) => w.bytes(bytes),
             }
         });
@@ -342,26 +357,27 @@ impl Component {
 }
 
 impl Transform {
-    fn read(r: &mut Reader) -> Result<Self> {
+    fn read(r: &mut Reader, format: FieldFormat) -> Result<Self> {
         let position = r.optional(Reader::f32s::<3>)?;
         let rotation = r.optional(Reader::f32s::<4>)?;
         let scale = r.optional(Reader::f32s::<3>)?;
         let (_, mut s) = r.scope(&[mark::CHILDREN])?;
         let count = s.count()?;
-        let children = (0..count).map(|_| GameObject::read(&mut s)).collect::<Result<_>>()?;
+        let children =
+            (0..count).map(|_| GameObject::read(&mut s, format)).collect::<Result<_>>()?;
         s.expect_end()?;
         r.expect_end()?;
         Ok(Transform { position, rotation, scale, children })
     }
 
-    fn write(&self, w: &mut Writer) {
+    fn write(&self, w: &mut Writer, format: FieldFormat) {
         w.optional(self.position.as_ref(), |w, v| w.f32s(v));
         w.optional(self.rotation.as_ref(), |w, v| w.f32s(v));
         w.optional(self.scale.as_ref(), |w, v| w.f32s(v));
         w.scope(mark::CHILDREN, |w| {
             w.count(self.children.len());
             for child in &self.children {
-                child.write(w);
+                child.write(w, format);
             }
         });
     }

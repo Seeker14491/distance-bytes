@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use distance_bytes::io::mark;
-use distance_bytes::{BytesFile, ComponentBody, ComponentKind, GameObject, LevelSettings};
+use distance_bytes::{BytesFile, ComponentBody, ComponentKind, FieldValue, GameObject, LevelSettings};
 use rayon::prelude::*;
 
 mod trace;
@@ -28,6 +28,15 @@ enum Command {
     Stats { paths: Vec<PathBuf> },
     /// Print every value our decoder reads from a file, as JSON lines.
     Trace { file: PathBuf },
+    /// Re-write a level with a longer name, which moves everything after the name. Used to test
+    /// that offsets inside the file are recomputed on write.
+    Relocate {
+        input: PathBuf,
+        output: PathBuf,
+        /// Number of characters to append to the level name.
+        #[arg(long, default_value_t = 1)]
+        pad: usize,
+    },
     /// Compare our decoder against the game's own reads, using the BytesTrace plugin.
     TraceCheck {
         paths: Vec<PathBuf>,
@@ -45,6 +54,7 @@ fn main() -> Result<()> {
         Command::Roundtrip { paths } => roundtrip(&paths),
         Command::Stats { paths } => stats(&paths),
         Command::Trace { file } => trace::print_trace(&file),
+        Command::Relocate { input, output, pad } => relocate(&input, &output, pad),
         Command::TraceCheck { paths, server, max } => {
             let files: Vec<_> = binary_files(&paths)?
                 .into_iter()
@@ -79,6 +89,19 @@ fn dump(path: &Path) -> Result<()> {
     Ok(())
 }
 
+fn relocate(input: &Path, output: &Path, pad: usize) -> Result<()> {
+    let data = std::fs::read(input)?;
+    let mut file = BytesFile::read(&data).with_context(|| input.display().to_string())?;
+    let BytesFile::Level(level) = &mut file else {
+        anyhow::bail!("{} is not a level", input.display());
+    };
+    level.name = format!("{}{}", level.name.to_string_lossy(), "_".repeat(pad)).into();
+    let out = file.write();
+    std::fs::write(output, &out)?;
+    println!("wrote {} ({} bytes, was {})", output.display(), out.len(), data.len());
+    Ok(())
+}
+
 fn dump_object(obj: &GameObject, depth: usize) {
     let indent = "  ".repeat(depth);
     println!("{indent}{} #{}", obj.name.to_string_lossy(), obj.guid);
@@ -91,6 +114,17 @@ fn dump_object(obj: &GameObject, depth: usize) {
             ComponentBody::Empty => "empty".to_owned(),
             ComponentBody::Transform(t) => {
                 format!("pos {:?} rot {:?} scale {:?}", t.position, t.rotation, t.scale)
+            }
+            ComponentBody::Fields(fields) => {
+                let fields: Vec<_> = fields
+                    .iter()
+                    .map(|f| match &f.value {
+                        FieldValue::Empty => format!("{} empty", f.name),
+                        FieldValue::Value(v) => format!("{} = {v:?}", f.name),
+                        FieldValue::Raw(b) => format!("{} raw ({} bytes)", f.name, b.len()),
+                    })
+                    .collect();
+                format!("fields {}", fields.join(", "))
             }
             ComponentBody::Raw(b) => format!("{} bytes", b.len()),
         };
@@ -162,16 +196,44 @@ fn roundtrip(paths: &[PathBuf]) -> Result<()> {
 }
 
 #[derive(Default)]
+struct ComponentStats {
+    count: usize,
+    empty: usize,
+    /// Bodies decoded as generic fields.
+    fields: usize,
+    raw: usize,
+    raw_bytes: usize,
+    /// Field values that didn't decode as their type, and their bytes.
+    raw_values: usize,
+    raw_value_bytes: usize,
+    typed_values: usize,
+}
+
+impl ComponentStats {
+    fn add(&mut self, other: &ComponentStats) {
+        self.count += other.count;
+        self.empty += other.empty;
+        self.fields += other.fields;
+        self.raw += other.raw;
+        self.raw_bytes += other.raw_bytes;
+        self.raw_values += other.raw_values;
+        self.raw_value_bytes += other.raw_value_bytes;
+        self.typed_values += other.typed_values;
+    }
+}
+
+#[derive(Default)]
 struct Stats {
     levels: BTreeMap<i32, usize>,
     object_files: usize,
     errors: Vec<String>,
-    /// (mark, id, version) -> (count, empty bodies, total body bytes)
-    components: BTreeMap<(i32, i32, i32), (usize, usize, usize)>,
+    /// Keyed by (mark, id, version).
+    components: BTreeMap<(i32, i32, i32), ComponentStats>,
     unknown_components: BTreeMap<String, usize>,
+    /// (component id, field name, value length) -> count
+    raw_field_values: BTreeMap<(i32, String, usize), usize>,
     transforms_decoded: usize,
     transforms_raw: usize,
-    raw_bytes: usize,
     raw_bodies_with_object_mark: usize,
     objects: usize,
 }
@@ -180,28 +242,44 @@ impl Stats {
     fn object(&mut self, obj: &GameObject) {
         self.objects += 1;
         for c in &obj.components {
-            let body_len = match &c.body {
-                ComponentBody::Raw(b) => {
-                    self.raw_bytes += b.len();
-                    let needle = mark::GAME_OBJECT.to_le_bytes();
-                    if b.windows(4).any(|w| w == needle) {
-                        self.raw_bodies_with_object_mark += 1;
-                    }
-                    b.len()
+            if let ComponentBody::Raw(b) = &c.body {
+                let needle = mark::GAME_OBJECT.to_le_bytes();
+                if b.windows(4).any(|w| w == needle) {
+                    self.raw_bodies_with_object_mark += 1;
                 }
-                _ => 0,
-            };
+            }
             match &c.kind {
                 ComponentKind::Known { mark, id, version } => {
                     let e = self.components.entry((*mark, id.0, *version)).or_default();
-                    e.0 += 1;
-                    e.1 += usize::from(c.body == ComponentBody::Empty);
-                    e.2 += body_len;
+                    e.count += 1;
+                    match &c.body {
+                        ComponentBody::Empty => e.empty += 1,
+                        ComponentBody::Transform(_) => {}
+                        ComponentBody::Fields(fields) => {
+                            e.fields += 1;
+                            for f in fields {
+                                match &f.value {
+                                    FieldValue::Empty => {}
+                                    FieldValue::Value(_) => e.typed_values += 1,
+                                    FieldValue::Raw(b) => {
+                                        e.raw_values += 1;
+                                        e.raw_value_bytes += b.len();
+                                        let key = (id.0, f.name.to_string(), b.len());
+                                        *self.raw_field_values.entry(key).or_default() += 1;
+                                    }
+                                }
+                            }
+                        }
+                        ComponentBody::Raw(b) => {
+                            e.raw += 1;
+                            e.raw_bytes += b.len();
+                        }
+                    }
                     if *id == distance_bytes::ComponentId::TRANSFORM {
                         match c.body {
                             ComponentBody::Transform(_) => self.transforms_decoded += 1,
                             ComponentBody::Raw(_) => self.transforms_raw += 1,
-                            ComponentBody::Empty => {}
+                            _ => {}
                         }
                     }
                 }
@@ -214,6 +292,27 @@ impl Stats {
             self.object(child);
         }
     }
+
+    fn merge(&mut self, other: Stats) {
+        for (k, v) in other.levels {
+            *self.levels.entry(k).or_default() += v;
+        }
+        self.object_files += other.object_files;
+        self.errors.extend(other.errors);
+        for (k, v) in &other.components {
+            self.components.entry(*k).or_default().add(v);
+        }
+        for (k, v) in other.unknown_components {
+            *self.unknown_components.entry(k).or_default() += v;
+        }
+        for (k, v) in other.raw_field_values {
+            *self.raw_field_values.entry(k).or_default() += v;
+        }
+        self.transforms_decoded += other.transforms_decoded;
+        self.transforms_raw += other.transforms_raw;
+        self.raw_bodies_with_object_mark += other.raw_bodies_with_object_mark;
+        self.objects += other.objects;
+    }
 }
 
 fn stats(paths: &[PathBuf]) -> Result<()> {
@@ -224,9 +323,8 @@ fn stats(paths: &[PathBuf]) -> Result<()> {
         if !is_binary(&data) {
             return Ok(());
         }
-        let file = BytesFile::read(&data);
         let mut local = Stats::default();
-        match file {
+        match BytesFile::read(&data) {
             Err(e) => local.errors.push(format!("{}: {e}", path.display())),
             Ok(BytesFile::Level(level)) => {
                 *local.levels.entry(level.version).or_default() += 1;
@@ -244,30 +342,15 @@ fn stats(paths: &[PathBuf]) -> Result<()> {
                 local.object(&obj);
             }
         }
-        let mut s = stats.lock().unwrap();
-        for (k, v) in local.levels {
-            *s.levels.entry(k).or_default() += v;
-        }
-        s.object_files += local.object_files;
-        s.errors.extend(local.errors);
-        for (k, v) in local.components {
-            let e = s.components.entry(k).or_default();
-            e.0 += v.0;
-            e.1 += v.1;
-            e.2 += v.2;
-        }
-        for (k, v) in local.unknown_components {
-            *s.unknown_components.entry(k).or_default() += v;
-        }
-        s.transforms_decoded += local.transforms_decoded;
-        s.transforms_raw += local.transforms_raw;
-        s.raw_bytes += local.raw_bytes;
-        s.raw_bodies_with_object_mark += local.raw_bodies_with_object_mark;
-        s.objects += local.objects;
+        stats.lock().unwrap().merge(local);
         Ok(())
     })?;
 
     let s = stats.into_inner().unwrap();
+    let mut total = ComponentStats::default();
+    for v in s.components.values() {
+        total.add(v);
+    }
     println!("levels by version: {:?}", s.levels);
     println!("object files: {}", s.object_files);
     println!("read errors: {}", s.errors.len());
@@ -276,20 +359,46 @@ fn stats(paths: &[PathBuf]) -> Result<()> {
     }
     println!("game objects: {}", s.objects);
     println!("transforms: {} decoded, {} raw", s.transforms_decoded, s.transforms_raw);
-    println!("raw component bytes: {}", s.raw_bytes);
+    println!(
+        "generic field bodies: {}, with {} typed values and {} raw values ({} bytes)",
+        total.fields, total.typed_values, total.raw_values, total.raw_value_bytes
+    );
+    println!("raw field values by component, field and length:");
+    let mut raw_fields: Vec<_> = s.raw_field_values.iter().collect();
+    raw_fields.sort_by_key(|(_, n)| std::cmp::Reverse(**n));
+    for ((id, name, len), n) in raw_fields {
+        let id = distance_bytes::ComponentId(*id);
+        let ty = distance_bytes::field_type(id, name);
+        println!("  {n:>8}  {id}.{name} ({len} bytes), type {ty:?}");
+    }
+    println!("raw bodies: {} ({} bytes)", total.raw, total.raw_bytes);
     println!("raw bodies containing a game object mark: {}", s.raw_bodies_with_object_mark);
     println!("unknown components: {:?}", s.unknown_components);
     println!("components ({} kinds of (mark, id, version)):", s.components.len());
     let mut rows: Vec<_> = s.components.iter().collect();
-    rows.sort_by_key(|(_, v)| std::cmp::Reverse(v.2));
-    println!("  {:>10} {:>9} {:>12}  component", "count", "empty", "raw bytes");
-    for ((m, id, version), (count, empty, bytes)) in rows {
+    rows.sort_by_key(|(_, v)| std::cmp::Reverse(v.raw_bytes + v.raw_value_bytes));
+    println!(
+        "  {:>10} {:>9} {:>9} {:>9} {:>12} {:>9} {:>9} {:>9}  component",
+        "count", "empty", "fields", "raw", "raw bytes", "typed", "raw vals", "raw val b"
+    );
+    for ((m, id, version), v) in rows {
         let kind = match *m {
             mark::SERIAL_COMPONENT => "",
             mark::SERIALIZABLE => " [wrapper]",
             _ => " [alt mark]",
         };
-        println!("  {count:>10} {empty:>9} {bytes:>12}  {} v{version}{kind}", distance_bytes::ComponentId(*id));
+        println!(
+            "  {:>10} {:>9} {:>9} {:>9} {:>12} {:>9} {:>9} {:>9}  {} v{version}{kind}",
+            v.count,
+            v.empty,
+            v.fields,
+            v.raw,
+            v.raw_bytes,
+            v.typed_values,
+            v.raw_values,
+            v.raw_value_bytes,
+            distance_bytes::ComponentId(*id)
+        );
     }
     Ok(())
 }

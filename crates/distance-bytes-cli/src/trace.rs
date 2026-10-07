@@ -40,8 +40,12 @@ pub fn event_json(e: &TraceEvent) -> String {
         }
         TraceValue::Int(v) => ("int", v.to_string()),
         TraceValue::UInt(v) => ("uint", v.to_string()),
+        TraceValue::Short(v) => ("short", v.to_string()),
+        TraceValue::UShort(v) => ("ushort", v.to_string()),
         TraceValue::Long(v) => ("long", v.to_string()),
         TraceValue::Float(bits) => ("float", (*bits as i32).to_string()),
+        TraceValue::Double(bits) => ("double", (*bits as i64).to_string()),
+        TraceValue::Char(v) => ("char", v.to_string()),
         TraceValue::Bool(v) => ("bool", v.to_string()),
         TraceValue::String(s) => ("string", serde_json::to_string(s).unwrap()),
         TraceValue::Empty => ("empty", "null".to_owned()),
@@ -65,16 +69,23 @@ fn matches(ours: &TraceEvent, game: &GameEvent) -> bool {
         return false;
     }
     let v = &game.v;
+    // Values read through the game's generic reader are typed by the C# type of the field
+    // (e.g. "generic:System.Single" or an enum), so only their value is compared.
+    let is = |t: &str| game.t == t || game.t.starts_with("generic:");
     match &ours.value {
         TraceValue::Scope { mark, len } => {
             game.t == "scope" && game.mark == Some(*mark) && game.len == Some(*len)
         }
-        TraceValue::Int(x) => game.t == "int" && v.as_i64() == Some(i64::from(*x)),
-        TraceValue::UInt(x) => game.t == "uint" && v.as_u64() == Some(u64::from(*x)),
-        TraceValue::Long(x) => game.t == "long" && v.as_i64() == Some(*x),
-        TraceValue::Float(bits) => game.t == "float" && v.as_i64() == Some(i64::from(*bits as i32)),
-        TraceValue::Bool(x) => game.t == "bool" && v.as_bool() == Some(*x),
-        TraceValue::String(s) => game.t == "string" && v.as_str() == Some(s),
+        TraceValue::Int(x) => is("int") && v.as_i64() == Some(i64::from(*x)),
+        TraceValue::UInt(x) => is("uint") && v.as_u64() == Some(u64::from(*x)),
+        TraceValue::Short(x) => is("short") && v.as_i64() == Some(i64::from(*x)),
+        TraceValue::UShort(x) => is("ushort") && v.as_u64() == Some(u64::from(*x)),
+        TraceValue::Long(x) => is("long") && v.as_i64() == Some(*x),
+        TraceValue::Float(bits) => is("float") && v.as_i64() == Some(i64::from(*bits as i32)),
+        TraceValue::Double(bits) => is("double") && v.as_i64() == Some(*bits as i64),
+        TraceValue::Char(x) => is("char") && v.as_u64() == Some(u64::from(*x)),
+        TraceValue::Bool(x) => is("bool") && v.as_bool() == Some(*x),
+        TraceValue::String(s) => is("string") && v.as_str() == Some(s),
         TraceValue::Empty => game.t == "empty",
     }
 }
@@ -180,8 +191,9 @@ pub fn trace_check(files: &[PathBuf], server: &str, max_mismatches: usize) -> Re
         total_game += report.game_bytes;
         total_decoded += report.decoded_game_bytes;
         let pct = 100.0 * report.decoded_game_bytes as f64 / report.game_bytes.max(1) as f64;
-        let status = if report.mismatches.is_empty() { "ok  " } else { "FAIL" };
-        failed += usize::from(!report.mismatches.is_empty());
+        let ok = report.mismatches.is_empty() && report.game_ok;
+        let status = if ok { "ok  " } else { "FAIL" };
+        failed += usize::from(!ok);
         println!(
             "{status} {} — game load {}, {} mismatches, {:.1}% of game-read bytes decoded, {} values not read by game, {} game skips",
             path.display(),
@@ -199,7 +211,7 @@ pub fn trace_check(files: &[PathBuf], server: &str, max_mismatches: usize) -> Re
         }
     }
     println!(
-        "{} files, {failed} with mismatches; {:.2}% of all game-read bytes decoded",
+        "{} files, {failed} failed (mismatches or game load failure); {:.2}% of all game-read bytes decoded",
         files.len(),
         100.0 * total_decoded as f64 / total_game.max(1) as f64
     );

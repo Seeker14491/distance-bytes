@@ -26,6 +26,18 @@ pub enum ErrorKind {
     TrailingBytes { len: usize },
     /// The file doesn't start with a level or game object scope.
     UnknownRoot(i32),
+    /// The end offset of a generic field is before the field.s value or past the end of its
+    /// component.
+    InvalidFieldEnd(i64),
+    /// The empty marker where the game would read it as a missing value and then misread the
+    /// data that follows.
+    UnexpectedEmptyMarker,
+    /// In level version 0, a generic field whose name the game doesn't know. The game stops
+    /// reading the component there.
+    UnknownField,
+    /// A component body in the generic format has no fields, which can't be told apart from
+    /// hand-written data.
+    NoFields,
 }
 
 impl Error {
@@ -50,6 +62,10 @@ impl fmt::Display for Error {
             ErrorKind::InvalidBool(b) => write!(f, "invalid boolean byte {b:#04x}"),
             ErrorKind::TrailingBytes { len } => write!(f, "{len} unread bytes at end of scope"),
             ErrorKind::UnknownRoot(mark) => write!(f, "unknown root mark {mark}"),
+            ErrorKind::InvalidFieldEnd(end) => write!(f, "invalid field end offset {end:#x}"),
+            ErrorKind::UnexpectedEmptyMarker => write!(f, "unexpected empty marker"),
+            ErrorKind::UnknownField => write!(f, "unknown field"),
+            ErrorKind::NoFields => write!(f, "no fields"),
         }
     }
 }

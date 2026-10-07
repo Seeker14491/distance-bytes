@@ -17,6 +17,7 @@ The game uses one visitor walk (`IVisitor`) for both `BinarySerializer` and `Xml
   | `55555555` | Transform children: count |
   | `33333333` | Built-in component (Unity wrapper): type, version, ID |
   | `22222222` | `SerialComponent` (game logic): type, version, ID |
+  | `32323232` | Read like `33333333`; not written by the current game, but present in some Workshop levels |
   | `23232323` | Unknown component: name, ID |
   | `44444444` | Spline track transform |
 
@@ -25,7 +26,14 @@ The game uses one visitor walk (`IVisitor`) for both `BinarySerializer` and `Xml
 - **Component payload styles**:
   1. **Hand-written `Visit(visitor, prefab, version)`** (126 classes): positional, with `switch (version)` branches.
   2. **Reflection (`VisitSerialComponentData`)**: field count, then for each field a name (`Trim('_')` of the first-letter-uppercased C# field name), an i64 **absolute end offset**, and the value or `EMPTY`. Level version 0 uses the older layout with no end offsets (`VisitSerialComponentDataV0`).
-- **Absolute offsets**: the game seeks to them and drops any value whose length doesn't match. The writer must recompute them, and raw blobs that contain reflection components can't be moved.
+- **Reflection values** follow `BinaryDeserializer`'s reader:
+  - Vector2/3/4, Quaternion, Color and Bounds are floats, and strings are strings, read with `Visit` (which checks for `EMPTY` before each float).
+  - Primitives are read as their type, and enums as `i32`.
+  - Any other type is read as a `u32` object reference.
+  - Arrays are `11111111` + count + elements. Elements that aren't primitives, strings or arrays are read as `u32` references.
+
+  The serializer writes **nothing** for types it can't handle, which includes all object references. The reader then reads past the field's end and seeks back, so those values are lost. An array of references is written as only the mark and count.
+- **Absolute offsets**: the game seeks to them and drops any value whose length doesn't match. The writer must recompute them. Moving a raw blob that contains reflection components makes the game misread the level (shown with `dbytes relocate`: two official levels failed to load after 6 bytes were inserted before them).
 - **How defaults are omitted**:
   1. A whole component body is empty when `IsDifferent(prefab)` is false.
   2. A reflection field is written as `EMPTY` when it equals the prefab's value.
@@ -52,10 +60,10 @@ The game uses one visitor walk (`IVisitor`) for both `BinarySerializer` and `Xml
 Workspace crates:
 - `distance-bytes`: core, I/O-free (`&[u8]` → model → `Vec<u8>`), wasm-friendly, never panics on input.
 - `distance-bytes-cli`: `stats`, `dump`, `trace`, `roundtrip`, `to-json`/`from-json`.
-- `tools/schema-extract` (C#): reads `Assembly-CSharp.dll` metadata and emits the `ComponentID` enum and reflection field-type tables as JSON. Generated Rust is checked in.
+- `tools/schema-extract` (C#): reads `Assembly-CSharp.dll` metadata and emits the `ComponentID` enum and reflection field-type tables, as JSON and as generated Rust (checked in).
 
 Layers:
-1. **Lossless tree**: Level → Layer → GameObject → Component → children. A payload is `Decoded(T)` or `Opaque(bytes)`. Reflection components are always parsed generically as `(name, Empty | Raw)` so their offsets can be recomputed. Lengths are backpatched the way the game does it.
+1. **Lossless tree**: Level → Layer → GameObject → Component → children. A payload is decoded or kept as raw bytes. Reflection components are detected by structure and parsed as `(name, Empty | Value | Raw)`, so their offsets can be recomputed. Values are typed from a generated table of field types; a value that doesn't parse as its type (or whose field the current game doesn't have) stays raw. Lengths are backpatched the way the game does it.
 2. **Visitor-based components**: a `Visitor` trait mirrors `IVisitor` and **takes field names**. One `visit(&mut self, v, version)` per component, translated from the decompiled C#, drives the reader, the writer, the trace emitter and later the XML reader/writer. Each struct holds the superset of fields across versions plus its stored version. No `binrw`/`deku`.
 3. **Semantic API**: builders, ID allocation and reference handling, serde JSON (with `schemars` JSON Schema for LLM structured output and TS types for the web), and `resolve(&PrefabDefaults)` producing filled-in values. The writer never needs the defaults; an optional `minimize` step re-diffs against them.
 
@@ -95,7 +103,13 @@ BytesServer endpoint: go through the level prefabs and the added-component prefa
   - Every binary file in both collections (2,362 files) round-trips byte-identical.
   - All 5.7M Transforms decode. No raw component body contains a game object mark, so children only appear under Transform.
   - `trace-check` shows no mismatches against the game on the oldest levels (v0–v2); our structural decode covers roughly 45–50% of the bytes the game reads.
-- **Next**: Phase 2 (generic reflection components with relocatable end offsets). After that, port MeshRenderer v1/v2: it is about 870 MB of the 1.19 GB of raw component bytes.
+- **Phase 2 (done)**:
+  - Reflection bodies are detected by structure: at least one field, and every end offset exact. 42,790 bodies in the corpus decode this way, all at component version 0, and none of those components fall back to raw.
+  - Field values are typed from `generated/fields.rs`: 87,969 typed values, with 1,313 left raw. Every raw value is one the game discards: fields the current game no longer has (e.g. `MusicTrigger.MusicCueID`, `KillGridBox.Event`, the removed `LaserLogic`), zero-byte object references, and reference arrays without elements.
+  - The writer recomputes end offsets. Levels with 6 bytes inserted before their reflection components now load in the game with 0 trace mismatches; before, two of them failed to load.
+  - Level version 0 (no end offsets) is decoded by field type. The corpus has no v0 level with reflection components, so this is covered by unit tests only.
+  - String lengths are now only accepted in their shortest 7-bit encoding, so typed values always write back identically.
+- **Next**: Phase 3. Port the hand-written components by size, starting with MeshRenderer v1/v2 (about 870 MB of the 1.18 GB of raw component bytes).
 
 ## Tooling notes
 

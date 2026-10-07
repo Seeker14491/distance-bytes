@@ -8,6 +8,7 @@
 
 mod component_id;
 mod error;
+mod fields;
 mod generated;
 pub mod io;
 mod string;
@@ -15,6 +16,7 @@ mod tree;
 
 pub use component_id::ComponentId;
 pub use error::{Error, ErrorKind, Result};
+pub use fields::{Field, FieldType, FieldValue, Value, field_type};
 pub use io::{TraceEvent, TraceValue};
 pub use string::DString;
 pub use tree::{
