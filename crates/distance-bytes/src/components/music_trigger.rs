@@ -1,5 +1,7 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
@@ -7,7 +9,9 @@ use crate::visit::{Visit, Visitor};
 /// `MusicTrigger`.
 ///
 /// Version 0 uses the generic field format.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct MusicTrigger {
     /// Version 2 and earlier.
     pub music_cue_id: Option<i32>,

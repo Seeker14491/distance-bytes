@@ -1,10 +1,14 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::visit::{Visit, Visitor};
 
-/// `Group`: Contains one or more individual objects.\n.
-#[derive(Debug, Clone, PartialEq, Default)]
+/// `Group`: Contains one or more individual objects.
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Group {
     /// References to the linked objects.
     pub links: Vec<u32>,

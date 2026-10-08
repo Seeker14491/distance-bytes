@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `TextMesh` (the game's `TextMeshWrapper`): settings for the 3D text.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct TextMesh {
     pub text: Option<DString>,
     /// Unity's `FontStyle`: 0 normal, 1 bold, 2 italic, 3 bold and italic.

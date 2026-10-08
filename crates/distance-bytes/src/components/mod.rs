@@ -189,6 +189,9 @@ pub use wing_corruption_zone::WingCorruptionZone;
 pub use z_event_listener::ZEventListener;
 pub use z_event_trigger::ZEventTrigger;
 
+use serde::de::Error as _;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use crate::component_id::ComponentId;
 use crate::error::{ErrorKind, Result};
 use crate::io::{Reader, Writer};
@@ -236,10 +239,37 @@ macro_rules! component_data {
                 }
             }
 
+            /// The component type of this body.
+            pub fn id(&self) -> ComponentId {
+                match self {
+                    $(ComponentData::$ty(_) => ComponentId::$id,)*
+                }
+            }
+
             /// The version the game writes for this component type.
             pub fn latest_version(&self) -> i32 {
                 match self {
                     $(ComponentData::$ty(_) => *<$ty as Visit>::VERSIONS.end(),)*
+                }
+            }
+
+            /// Serializes the body without its type.
+            pub(crate) fn serialize_body<S: Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+                match self {
+                    $(ComponentData::$ty(data) => data.serialize(s),)*
+                }
+            }
+
+            /// Deserializes a body of the given component type.
+            pub(crate) fn deserialize_body<'de, D: Deserializer<'de>>(
+                id: ComponentId,
+                d: D,
+            ) -> std::result::Result<Self, D::Error> {
+                match id {
+                    $(ComponentId::$id => <$ty>::deserialize(d).map(|data| ComponentData::$ty(Box::new(data))),)*
+                    _ => Err(D::Error::custom(format_args!(
+                        "{id} has no typed body; use \"fields\" or \"raw\""
+                    ))),
                 }
             }
 

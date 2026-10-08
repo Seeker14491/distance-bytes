@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::visit::{Visit, Visitor};
 
 /// `FadeOut`: Fades out lights and emissive colors of this object when a car comes within the
 /// trigger distance.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct FadeOut {
     pub one_shot: Option<bool>,
     pub trigger_distance: Option<f32>,

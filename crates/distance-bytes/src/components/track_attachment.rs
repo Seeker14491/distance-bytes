@@ -1,10 +1,14 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::visit::{Visit, Visitor};
 
 /// `TrackAttachment`: This object is attached to a track, and will move along with it.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct TrackAttachment {
     /// A reference to an object.
     pub attached_to: u32,

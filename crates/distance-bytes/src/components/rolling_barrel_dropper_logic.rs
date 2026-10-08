@@ -1,10 +1,14 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::visit::{Visit, Visitor};
 
-/// `RollingBarrelDropperLogic`: Drops Rollers when triggered. \nAdd EventListener to use this.
-#[derive(Debug, Clone, PartialEq, Default)]
+/// `RollingBarrelDropperLogic`: Drops Rollers when triggered. Add an EventListener to use this.
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct RollingBarrelDropperLogic {
     pub drop_rate_per_minute: Option<i32>,
     /// Version 1 and earlier.

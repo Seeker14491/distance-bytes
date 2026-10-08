@@ -1,10 +1,14 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::visit::{Visit, Visitor};
 
 /// `AdventureFinishTrigger`.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct AdventureFinishTrigger {
     pub time_scale_0_0_00: Option<f32>,
     pub time_scale_1_1_90: Option<f32>,

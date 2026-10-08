@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `LensFlare` (the game's `LensFlareWrapper`): simulated camera lens flares.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LensFlare {
     /// Version 0 only, ignored by the game.
     pub flare_name: Option<DString>,

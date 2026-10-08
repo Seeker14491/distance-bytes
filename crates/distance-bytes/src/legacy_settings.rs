@@ -3,13 +3,17 @@
 
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// Level settings in the format of level versions 0 and 1, read by the game's
 /// `LevelSettings.OldVisit`. Colors are `[r, g, b, a]`.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LegacyLevelSettings {
     /// Ignored by the game.
     pub skybox_material: Option<DString>,

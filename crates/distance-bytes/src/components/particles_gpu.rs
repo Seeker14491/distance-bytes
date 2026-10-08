@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::visit::{Visit, Visitor};
 
 /// `ParticlesGPU`: a particle system. Versions 6 and earlier are read by the game's
 /// `VisitOlderVersions`, with some fields in a different order.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ParticlesGPU {
     /// `[r, g, b, a]`.
     pub color_start: Option<[f32; 4]>,

@@ -122,7 +122,22 @@ BytesServer endpoint: go through the level prefabs and the added-component prefa
   - `trace-check` on the 2 smallest files for every decoded (component, version) pair (258 files) gives 0 mismatches and 0 load failures. All but a few bytes the game reads are decoded; the exception is the 8-byte `SetActiveOnMIDIEvent.GameObjs` generic values, an array count with no elements, which the game reads past and discards.
   - Versions that no corpus file has (114 component versions, 7 legacy settings versions) are checked with `dbytes synth`, which writes a sample with every value set into a copy of a corpus file. All have 0 mismatches, and the game reads every value. Eight fail to load after the read because of the sample data: replays upgrade a garbage event buffer, and a TrackSegment v0 links to an object that isn't a TrackLink.
   - A unit test round-trips that sample for every decoded version.
-- **Next**: Phase 4.
+- **Phase 4 (in progress)**:
+  - **4a. Lossless JSON.** serde on the whole model, `dbytes to-json` / `from-json`, and a corpus test that binary → JSON → binary is byte-identical. The JSON shape:
+    - A component is `{"type": "TeleporterEntrance", "version": 4, "guid": 12, "data": {...}}`. `data` holds a typed body (a `Transform` holds its `children` there), `fields` a generic-format body keyed by the game's field names and typed from the field table, and `raw` undecoded bytes as hex. A component with none of these has an empty body. `mark` appears only when it isn't the game's mark for the type, and `end` only when a body is truncated or has trailing bytes.
+    - Struct fields use the Rust names. `null` or a missing key means the empty marker ("same as the prefab"), so `None` values are left out.
+    - Non-finite floats are written as `"NaN"`, `"Infinity"` or `"-Infinity"` (with the bits when the NaN isn't the canonical one), since JSON has no such numbers. The corpus has one NaN.
+    - Strings that aren't valid UTF-16 are `{"utf16le": "<hex>"}`. The corpus has none.
+    - A generated table of the game's classes gives each component ID's written version and mark.
+    - Objects nest up to 469 deep in one Workshop level, which overflows a 1 MB stack even in the binary reader. Recursion grows the stack with `stacker` on native targets.
+  - **4a (done).** All 2,362 corpus files round-trip byte-identical through JSON (in the corpus test and `dbytes roundtrip --json`), at about 2.5× the time of the binary round trip. Findings:
+    - serde_json reads an `f32` by parsing an `f64` and rounding it, which for some values gives the next `f32` (e.g. `7.038531e-26`). Those are written with more digits; an ignored test checks all 2³² bit patterns.
+    - The derived `Clone` overflowed a 1 MB stack on the 469-deep level, and drop on about 2,000 levels. `GameObject` implements `Clone`, `PartialEq`, `Debug` and `Drop` by hand to grow the stack, so its fields can't be moved out by destructuring.
+    - The pretty output keeps arrays of plain values on one line. Deep nesting makes it large (the 469-deep level is 71 MB pretty, 3 MB binary); `--compact` avoids the indentation.
+  - **4b. JSON Schema** via `schemars`, with per-type schemas for typed bodies and for generic-format fields. `dbytes schema`.
+  - **4c. Builder API.** Create levels, layers and objects by prefab name; allocate GUIDs (one pool per file for objects and components, unique in every corpus level); check references; new components use the latest versions. Optional `version` and `guid` in authored JSON.
+  - **4d. Prefab defaults.** A `tools/BytesTrace` endpoint that saves every level-editor prefab and the added-component prefab with `prefab = null`; `PrefabDefaults`, `resolve()` and `minimize()`. The dump isn't committed until the licensing question is settled.
+  - **4e. Acceptance.** A level written as JSON loads in the game through `/level-bytes-trace`.
 
 ## Tooling notes
 

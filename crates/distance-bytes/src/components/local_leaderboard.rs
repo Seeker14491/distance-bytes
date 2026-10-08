@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `LocalLeaderboard`: the results of a level's runs on this computer.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LocalLeaderboard {
     /// The version of the results' format. The game reads them as [`ResultInfo::VERSION`] when
     /// this is missing.
@@ -16,7 +20,9 @@ pub struct LocalLeaderboard {
 }
 
 /// `ResultInfo`: a result in a [`LocalLeaderboard`].
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ResultInfo {
     /// Version 2 and later.
     pub profile_id: Option<i32>,

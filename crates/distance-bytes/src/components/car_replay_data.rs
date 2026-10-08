@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `CarReplayData`: a recorded run of a car, as saved for local leaderboards and ghosts.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct CarReplayData {
     /// The player's name. From version 2 the game truncates it to 64 characters when writing.
     pub name: Option<DString>,
@@ -20,22 +24,29 @@ pub struct CarReplayData {
     pub car: CarData,
     /// The game's version of each type of player event, as of the recording.
     pub player_event_versions: Vec<Option<i32>>,
+    #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
     pub event_buffer: Vec<u8>,
     /// The car's states, uncompressed. Version 4 and earlier.
+    #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
     pub state_buffer: Vec<u8>,
     /// The car's states, compressed in two parts. Version 5 and later; version 5 uses a different
     /// encoding than later versions.
+    #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
     pub transform_buffer: Vec<u8>,
     /// Version 5 and later.
+    #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
     pub directive_buffer: Vec<u8>,
     /// Versions 1 to 4, ignored by the game.
+    #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
     pub eye_state_buffer: Vec<u8>,
     /// Whether the states were cut short when compressed. Version 7 and later.
     pub data_was_truncated: Option<bool>,
 }
 
 /// `CarReplayData.CarData`: the car's look.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct CarData {
     /// Always 0.
     pub version: Option<i32>,
@@ -45,7 +56,9 @@ pub struct CarData {
 }
 
 /// `CarColors`, each `[r, g, b, a]`.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct CarColors {
     pub primary: Option<[f32; 4]>,
     pub secondary: Option<[f32; 4]>,

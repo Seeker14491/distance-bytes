@@ -1,12 +1,16 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::visit::{Visit, Visitor};
 
 /// `PopupBlockerLogic`: Pops up out of the track in front of the car.
 ///
 /// Version 0 uses the generic field format.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct PopupBlockerLogic {
     pub holo_distance: Option<f32>,
     pub holo_color_speed: Option<f32>,

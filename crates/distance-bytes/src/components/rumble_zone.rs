@@ -1,12 +1,16 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::visit::{Visit, Visitor};
 
 /// `RumbleZone`.
 ///
 /// Version 0 uses the generic field format.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct RumbleZone {
     pub camera_shake_intensity: Option<f32>,
     pub archaic_ramp_amount: Option<f32>,

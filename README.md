@@ -7,6 +7,8 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 - Reads every binary `.bytes` file the game writes into a tree of levels, layers, game objects and components, and writes it back byte-identical. Covers level versions 0–4 and non-level files (custom objects, profiles, leaderboards, replays).
 - Decodes `Transform` components (position, rotation, scale, children) and components in the game's generic field format (field names with typed values). The generic format stores absolute file offsets, which are recomputed on write, so objects can be added, removed or moved.
 - Decodes every component with its own serializer into a typed struct (`distance_bytes::components`), in every version the game reads, along with the level settings of level versions 0 and 1. Bodies that don't decode are kept as raw bytes. In the corpus, these are only bodies the game itself doesn't read.
+- Converts files to JSON and back losslessly (`distance_bytes::json`). Components are `{"type": "TeleporterEntrance", "version": 4, "guid": 12, "data": {...}}`, and values equal to the prefab's are left out. The module documentation describes the format.
+- Handles objects nested any number of levels deep (one Workshop level nests them 469 deep) by growing the stack, on native targets.
 
 ## Layout
 
@@ -24,7 +26,9 @@ cargo run --release -p distance-bytes-cli -- <command>
 ```
 
 - `dump <file>`: print the object tree.
-- `roundtrip <paths>...`: read and re-write every binary `.bytes` file under the paths and check that the output is identical.
+- `to-json <file> [out] [--compact]`: convert a file to JSON.
+- `from-json <json> <out>`: convert JSON back to a `.bytes` file.
+- `roundtrip <paths>... [--json]`: read and re-write every binary `.bytes` file under the paths and check that the output is identical. With `--json`, each file goes through JSON first.
 - `stats <paths>...`: statistics about component types and how many bytes are still undecoded.
 - `trace <file>`: every value our decoder reads, as JSON lines.
 - `relocate <in> <out> [--pad N]`: re-write a level with N characters added to its name, which moves everything after it. Use it with `trace-check` to test that offsets are recomputed.
@@ -38,7 +42,9 @@ cargo run --release -p distance-bytes-cli -- <command>
 cargo test
 ```
 
-The corpus test round-trips every binary `.bytes` file under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). Use absolute paths, since tests run in the crate directory:
+`cargo test -- --ignored` also checks that every `f32` bit pattern survives JSON (about half a minute).
+
+The corpus test round-trips every binary `.bytes` file, directly and through JSON, under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). Use absolute paths, since tests run in the crate directory:
 
 ```bash
 DISTANCE_BYTES_CORPUS="C:/<repo>/game_assets_dump/Assets/Resources;C:/Users/<you>/Documents/My Games/Distance" cargo test --test corpus

@@ -3,6 +3,9 @@
 //! Bodies that don't decode are kept as raw bytes.
 
 use std::cell::RefCell;
+use std::fmt;
+
+use serde::{Deserialize, Serialize};
 
 use crate::component_id::ComponentId;
 use crate::components::ComponentData;
@@ -10,11 +13,13 @@ use crate::error::{ErrorKind, Result};
 use crate::fields::{Field, FieldFormat, read_fields, write_fields};
 use crate::io::{Reader, TraceEvent, Writer, mark};
 use crate::legacy_settings::LegacyLevelSettings;
+use crate::stack::grow;
 use crate::string::DString;
 use crate::visit::{BodyEnd, Visit};
 
 /// The root of a `.bytes` file.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BytesFile {
     Level(Level),
     /// Non-level files (custom objects, profiles, replays, leaderboards, ...) are a single
@@ -57,12 +62,15 @@ impl BytesFile {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Level {
     pub name: DString,
     /// The level file version, 0 to 4. The game writes version 4.
+    #[serde(default = "Level::latest_version")]
     pub version: i32,
     pub settings: LevelSettingsData,
+    #[serde(default)]
     pub layers: Vec<Layer>,
 }
 
@@ -94,6 +102,13 @@ pub enum LegacySettingsBody {
 }
 
 impl Level {
+    /// The level version the game writes.
+    pub const LATEST_VERSION: i32 = 4;
+
+    fn latest_version() -> i32 {
+        Self::LATEST_VERSION
+    }
+
     pub fn read(r: &mut Reader) -> Result<Self> {
         let (_, mut s) = r.scope(&[mark::LEVEL])?;
         let name = s.string()?;
@@ -153,10 +168,16 @@ impl Level {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Layer {
     pub name: DString,
+    #[serde(
+        default = "LayerFlags::absent",
+        skip_serializing_if = "LayerFlags::is_absent"
+    )]
     pub flags: LayerFlags,
+    #[serde(default)]
     pub objects: Vec<GameObject>,
 }
 
@@ -273,19 +294,71 @@ impl Layer {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+/// Objects nest hundreds of levels deep, so the recursive operations on them (cloning, comparing,
+/// formatting and dropping, as well as reading and writing) grow the stack as needed.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GameObject {
     /// The prefab name, which is also the object's name.
     pub name: DString,
     /// Always written empty by the game.
+    #[serde(default, skip_serializing_if = "DString::is_empty")]
     pub prefab: DString,
     /// Unique ID used for references between objects.
+    #[serde(default)]
     pub guid: u32,
+    #[serde(default)]
     pub components: Vec<Component>,
+}
+
+impl Clone for GameObject {
+    fn clone(&self) -> Self {
+        grow(|| GameObject {
+            name: self.name.clone(),
+            prefab: self.prefab.clone(),
+            guid: self.guid,
+            components: self.components.clone(),
+        })
+    }
+}
+
+impl PartialEq for GameObject {
+    fn eq(&self, other: &Self) -> bool {
+        grow(|| {
+            self.name == other.name
+                && self.prefab == other.prefab
+                && self.guid == other.guid
+                && self.components == other.components
+        })
+    }
+}
+
+impl fmt::Debug for GameObject {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        grow(|| {
+            f.debug_struct("GameObject")
+                .field("name", &self.name)
+                .field("prefab", &self.prefab)
+                .field("guid", &self.guid)
+                .field("components", &self.components)
+                .finish()
+        })
+    }
+}
+
+impl Drop for GameObject {
+    fn drop(&mut self) {
+        let components = std::mem::take(&mut self.components);
+        grow(|| drop(components));
+    }
 }
 
 impl GameObject {
     pub(crate) fn read(r: &mut Reader, format: FieldFormat) -> Result<Self> {
+        grow(|| Self::read_unchecked(r, format))
+    }
+
+    fn read_unchecked(r: &mut Reader, format: FieldFormat) -> Result<Self> {
         let (_, mut s) = r.scope(&[mark::GAME_OBJECT])?;
         let name = s.string()?;
         let prefab = s.string()?;
@@ -304,6 +377,10 @@ impl GameObject {
     }
 
     pub(crate) fn write(&self, w: &mut Writer, format: FieldFormat) {
+        grow(|| self.write_unchecked(w, format))
+    }
+
+    fn write_unchecked(&self, w: &mut Writer, format: FieldFormat) {
         w.scope(mark::GAME_OBJECT, |w| {
             w.string(&self.name);
             w.string(&self.prefab);
@@ -367,12 +444,15 @@ pub enum ComponentBody {
 }
 
 /// The body of a `Transform` component. `None` values are the same as the prefab's.
-#[derive(Debug, Clone, PartialEq)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Transform {
     pub position: Option<[f32; 3]>,
     /// Quaternion as `[x, y, z, w]`.
     pub rotation: Option<[f32; 4]>,
     pub scale: Option<[f32; 3]>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<GameObject>,
 }
 

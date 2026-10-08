@@ -1,5 +1,7 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
@@ -7,7 +9,9 @@ use crate::visit::{Visit, Visitor};
 /// `AudioEventTrigger`.
 ///
 /// Version 0 uses the generic field format.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct AudioEventTrigger {
     pub event: Option<DString>,
     pub one_time_trigger: Option<bool>,

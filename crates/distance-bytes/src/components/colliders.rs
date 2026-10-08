@@ -1,12 +1,16 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `BoxCollider` (the game's `BoxColliderWrapper`): a box-shaped zone which detects when the
 /// player's car enters or leaves it.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct BoxCollider {
     pub center: Option<[f32; 3]>,
     /// Version 0 only, ignored by the game.
@@ -34,7 +38,9 @@ impl Visit for BoxCollider {
 
 /// `SphereCollider` (the game's `SphereColliderWrapper`): a spherical zone which detects when
 /// the player's car enters or leaves it.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct SphereCollider {
     pub center: Option<[f32; 3]>,
     pub radius: Option<f32>,
@@ -57,7 +63,9 @@ impl Visit for SphereCollider {
 
 /// `CapsuleCollider` (the game's `CapsuleColliderWrapper`): a capsule zone which detects when
 /// the player's car enters or leaves it.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct CapsuleCollider {
     pub center: Option<[f32; 3]>,
     pub radius: Option<f32>,
@@ -84,7 +92,9 @@ impl Visit for CapsuleCollider {
 }
 
 /// `SerialCollider`: collider settings old versions of the collider components stored.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct SerialCollider {
     /// A `BoolState`.
     pub is_trigger: Option<bool>,

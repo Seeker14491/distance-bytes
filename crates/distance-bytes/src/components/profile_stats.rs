@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `ProfileStats`: a profile's statistics, kept with its progress.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ProfileStats {
     /// The version of `player_stats`' format. The game reads them as [`PlayerStats::VERSION`]
     /// when this is missing.
@@ -27,7 +31,9 @@ pub struct ProfileStats {
 }
 
 /// `PlayerStats`: totals of a player's actions, in [`ProfileStats`].
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct PlayerStats {
     pub total_deaths_count: Option<i64>,
     pub deaths_by_laser_count: Option<i64>,

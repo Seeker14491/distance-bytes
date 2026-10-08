@@ -1,5 +1,7 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
@@ -9,7 +11,9 @@ use crate::visit::{Visit, Visitor};
 ///
 /// The game writes every material and color, not only those that differ from the prefab. An
 /// empty list keeps the prefab's materials.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct MeshRenderer {
     /// Version 0 only, ignored by the game.
     pub cast_shadows: Option<bool>,
@@ -25,7 +29,9 @@ pub struct MeshRenderer {
 }
 
 /// The colors of one material of a renderer.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct MaterialColors {
     /// The material's name.
     pub material: Option<DString>,
@@ -33,7 +39,9 @@ pub struct MaterialColors {
 }
 
 /// A color property of a material, such as `_Color` or `_EmitColor`.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct MaterialColor {
     pub name: Option<DString>,
     /// `[r, g, b, a]`.

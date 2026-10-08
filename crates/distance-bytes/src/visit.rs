@@ -7,6 +7,8 @@
 
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::{Error, ErrorKind, Result};
 use crate::io::{EMPTY_MARKER, Reader, Writer, mark};
 use crate::string::DString;
@@ -237,7 +239,8 @@ pub(crate) trait Visitor: Sized {
 
 /// How a component body ends compared to the values its version's serializer reads. Files
 /// written by older game builds can have fewer or more values under the same version.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BodyEnd {
     /// The body ends after the last value.
     #[default]
@@ -246,7 +249,7 @@ pub enum BodyEnd {
     /// does for empty ones, so they're read as `None` (and references as 0).
     Truncated(u32),
     /// Bytes after the last value, which the game skips.
-    Trailing(Vec<u8>),
+    Trailing(#[serde(with = "crate::json::hex")] Vec<u8>),
 }
 
 pub(crate) struct ReadVisitor<'r, 'a> {

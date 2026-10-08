@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `AmbientColors`: the ambient light colors, each `[r, g, b, a]`.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct AmbientColors {
     pub sky: Option<[f32; 4]>,
     pub equator: Option<[f32; 4]>,
@@ -21,7 +25,9 @@ impl AmbientColors {
 }
 
 /// `LevelSettings.DirectionLight`: the directional light.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct DirectionLight {
     /// `[r, g, b, a]`.
     pub color: Option<[f32; 4]>,
@@ -46,7 +52,9 @@ impl DirectionLight {
 
 /// `LevelSettings.Skybox`: the sky. Versions before 20 (of both `LevelSettings` and `Biodome`)
 /// have the old skybox, later ones the new one and a background layer.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Skybox {
     /// `LevelSettings.Skybox.Old.Type`. Old skybox only.
     pub r#type: Option<i32>,
@@ -148,7 +156,9 @@ impl Skybox {
 }
 
 /// `LevelSettings.Fog`.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Fog {
     /// `[r, g, b, a]`.
     pub color: Option<[f32; 4]>,
@@ -179,7 +189,9 @@ impl Fog {
 }
 
 /// `Biodome`: a zone with its own ambient light, directional light, sky and fog.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Biodome {
     /// Version 0 only.
     pub radius: Option<f32>,

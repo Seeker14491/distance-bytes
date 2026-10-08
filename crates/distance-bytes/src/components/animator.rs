@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::visit::{Visit, Visitor};
 
 /// The timing of an animation (`AnimatorBase.VisitCurve` and, in older versions,
 /// `AnimatorBase.VisitCurveOld`), shared by `Animated` and `GoldenAnimator`.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct AnimatorCurve {
     pub delay: Option<f32>,
     pub duration: Option<f32>,
@@ -60,7 +64,9 @@ impl AnimatorCurve {
 
 /// What an animation does on events (`AnimatorBase.VisitTrigger`). The actions are
 /// `AnimatorBase.TriggerAction`s.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct AnimatorTrigger {
     pub default_action: Option<i32>,
     pub on_action: Option<i32>,
@@ -90,7 +96,9 @@ impl AnimatorTrigger {
 }
 
 /// `Animated`: animates the object's transform.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Animated {
     /// `Animated.MotionType`.
     pub motion: Option<i32>,
@@ -190,7 +198,9 @@ impl Visit for Animated {
 }
 
 /// `GoldenAnimator`: animates the scale and position of the object.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct GoldenAnimator {
     pub scale: Option<bool>,
     pub scale_exponent: Option<[f32; 3]>,

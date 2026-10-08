@@ -6,3 +6,12 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+ryu = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip", "unbounded_depth"] }
+serde_path_to_error = "0.1"
+serde_with = { version = "3", default-features = false, features = ["macros"] }
+
+# Grows the stack for deeply nested objects; wasm has no stack switching.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+stacker = "0.1"

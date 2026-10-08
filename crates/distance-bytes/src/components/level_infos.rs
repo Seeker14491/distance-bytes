@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `LevelInfos`: the game's cache of level metadata (`Settings/LevelInfos.bytes`).
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LevelInfos {
     /// The version of the infos' format. The game reads them as [`LevelInfo::VERSION`] when this
     /// is missing, and discards them when it isn't the current version.
@@ -14,7 +18,9 @@ pub struct LevelInfos {
 }
 
 /// `LevelInfo`: a level's metadata in [`LevelInfos`].
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LevelInfo {
     pub level_name: Option<DString>,
     pub relative_path: Option<DString>,

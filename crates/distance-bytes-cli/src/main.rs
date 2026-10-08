@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use distance_bytes::io::mark;
+use distance_bytes::json;
 use distance_bytes::{
     BodyEnd, BytesFile, ComponentBody, ComponentData, ComponentId, ComponentKind, FieldValue,
     GameObject, LegacyLevelSettings, LegacySettingsBody, LevelSettingsData,
@@ -26,7 +27,23 @@ enum Command {
     Dump { file: PathBuf },
     /// Read and re-write every binary .bytes file under the given paths and check that the
     /// output is byte-identical.
-    Roundtrip { paths: Vec<PathBuf> },
+    Roundtrip {
+        paths: Vec<PathBuf>,
+        /// Convert each file to JSON and back before writing it.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Convert a .bytes file to JSON.
+    ToJson {
+        input: PathBuf,
+        /// The JSON file to write; standard output if omitted.
+        output: Option<PathBuf>,
+        /// Write the JSON on one line.
+        #[arg(long)]
+        compact: bool,
+    },
+    /// Convert JSON written by `to-json` (or by hand) to a .bytes file.
+    FromJson { input: PathBuf, output: PathBuf },
     /// Print statistics about the binary .bytes files under the given paths.
     Stats { paths: Vec<PathBuf> },
     /// Print every value our decoder reads from a file, as JSON lines.
@@ -73,7 +90,13 @@ enum Command {
 fn main() -> Result<()> {
     match Cli::parse().command {
         Command::Dump { file } => dump(&file),
-        Command::Roundtrip { paths } => roundtrip(&paths),
+        Command::Roundtrip { paths, json } => roundtrip(&paths, json),
+        Command::ToJson {
+            input,
+            output,
+            compact,
+        } => to_json(&input, output.as_deref(), compact),
+        Command::FromJson { input, output } => from_json(&input, &output),
         Command::Stats { paths } => stats(&paths),
         Command::Trace { file } => trace::print_trace(&file),
         Command::Relocate { input, output, pad } => relocate(&input, &output, pad),
@@ -223,7 +246,37 @@ fn is_binary(data: &[u8]) -> bool {
     matches!(head, Some(mark::LEVEL | mark::GAME_OBJECT))
 }
 
-fn roundtrip(paths: &[PathBuf]) -> Result<()> {
+fn to_json(input: &Path, output: Option<&Path>, compact: bool) -> Result<()> {
+    let data = std::fs::read(input)?;
+    let file = BytesFile::read(&data).with_context(|| input.display().to_string())?;
+    let json = if compact {
+        json::to_vec(&file)?
+    } else {
+        let mut v = json::to_string_pretty(&file)?.into_bytes();
+        v.push(b'\n');
+        v
+    };
+    match output {
+        Some(path) => std::fs::write(path, json)?,
+        None => std::io::Write::write_all(&mut std::io::stdout().lock(), &json)?,
+    }
+    Ok(())
+}
+
+fn from_json(input: &Path, output: &Path) -> Result<()> {
+    let text = std::fs::read(input)?;
+    let file: BytesFile = json::from_slice(&text).with_context(|| input.display().to_string())?;
+    std::fs::write(output, file.write())?;
+    Ok(())
+}
+
+/// Converts a file to JSON and back.
+fn through_json(file: &BytesFile) -> Result<BytesFile> {
+    let text = json::to_string(file).context("to JSON")?;
+    json::from_str(&text).context("from JSON")
+}
+
+fn roundtrip(paths: &[PathBuf], via_json: bool) -> Result<()> {
     let files = binary_files(paths)?;
     let failures = Mutex::new(Vec::new());
     let checked = files
@@ -233,8 +286,14 @@ fn roundtrip(paths: &[PathBuf]) -> Result<()> {
             if !is_binary(&data) {
                 return Ok(0);
             }
-            let problem = match BytesFile::read(&data) {
-                Err(e) => Some(format!("read error {e}")),
+            let read = BytesFile::read(&data).map_err(anyhow::Error::from);
+            let read = if via_json {
+                read.and_then(|f| through_json(&f))
+            } else {
+                read
+            };
+            let problem = match read {
+                Err(e) => Some(format!("error: {e:#}")),
                 Ok(file) => {
                     let out = file.write();
                     (out != data).then(|| {

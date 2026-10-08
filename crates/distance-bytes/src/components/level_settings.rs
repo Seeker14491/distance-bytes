@@ -1,12 +1,16 @@
 use std::ops::RangeInclusive;
 
 use super::environment::{AmbientColors, DirectionLight, Fog, Skybox};
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `LevelSettings`: a level's name, modes, environment, medal times and editor state.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LevelSettings {
     /// When the level was saved, as .NET's `DateTime.ToBinary`.
     pub date_time: Option<i64>,
@@ -67,7 +71,9 @@ pub struct LevelSettings {
 }
 
 /// `LevelSettings.LevelEditorPrivateSettings`: the level editor's cursor and camera.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LevelEditorPrivateSettings {
     pub cursor_position: Option<[f32; 3]>,
     /// A quaternion `[x, y, z, w]`.

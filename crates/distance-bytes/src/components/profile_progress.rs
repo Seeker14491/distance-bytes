@@ -1,11 +1,15 @@
 use std::ops::RangeInclusive;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::Result;
 use crate::string::DString;
 use crate::visit::{Visit, Visitor};
 
 /// `ProfileProgress`: a profile's progress through levels and the campaign.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ProfileProgress {
     /// The version of the levels' progress format. The game reads them as
     /// [`LevelProgress::VERSION`] when this is missing.
@@ -50,7 +54,9 @@ pub struct ProfileProgress {
 }
 
 /// `ProfileProgress.LevelProgress`: a profile's progress in a level.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[serde_with::skip_serializing_none]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct LevelProgress {
     /// The level's version (its `DateTime.ToBinary`) when last played, as a decimal string.
     pub last_played_level_version: Option<DString>,
