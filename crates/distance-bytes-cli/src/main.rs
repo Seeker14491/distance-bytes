@@ -43,7 +43,16 @@ enum Command {
         compact: bool,
     },
     /// Convert JSON written by `to-json` (or by hand) to a .bytes file.
-    FromJson { input: PathBuf, output: PathBuf },
+    FromJson {
+        input: PathBuf,
+        output: PathBuf,
+        /// Give objects and components whose GUID is 0 (or missing) new ones.
+        #[arg(long)]
+        assign_guids: bool,
+    },
+    /// Report problems with the GUIDs and references of .bytes files under the given paths, and
+    /// of JSON files given by name, which make the game lose links or fail to load a level.
+    Check { paths: Vec<PathBuf> },
     /// Write the JSON Schema of the JSON format. By default it describes JSON for a new level,
     /// with components in the versions the game writes.
     Schema {
@@ -111,7 +120,12 @@ fn main() -> Result<()> {
             output,
             compact,
         } => to_json(&input, output.as_deref(), compact),
-        Command::FromJson { input, output } => from_json(&input, &output),
+        Command::FromJson {
+            input,
+            output,
+            assign_guids,
+        } => from_json(&input, &output, assign_guids),
+        Command::Check { paths } => check(&paths),
         Command::Schema {
             output,
             full,
@@ -284,10 +298,70 @@ fn to_json(input: &Path, output: Option<&Path>, compact: bool) -> Result<()> {
     Ok(())
 }
 
-fn from_json(input: &Path, output: &Path) -> Result<()> {
+fn from_json(input: &Path, output: &Path, assign_guids: bool) -> Result<()> {
     let text = std::fs::read(input)?;
-    let file: BytesFile = json::from_slice(&text).with_context(|| input.display().to_string())?;
+    let mut file: BytesFile =
+        json::from_slice(&text).with_context(|| input.display().to_string())?;
+    if assign_guids {
+        let assigned = file.assign_guids();
+        if assigned > 0 {
+            eprintln!("Assigned {assigned} GUIDs");
+        }
+    }
+    for problem in file.check() {
+        eprintln!("warning: {problem}");
+    }
     std::fs::write(output, file.write())?;
+    Ok(())
+}
+
+fn check(paths: &[PathBuf]) -> Result<()> {
+    let is_json = |p: &Path| {
+        p.extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("json"))
+    };
+    let mut files = binary_files(paths)?;
+    files.extend(paths.iter().filter(|p| is_json(p)).cloned());
+    let checked = std::sync::atomic::AtomicUsize::new(0);
+    let mut problems: Vec<String> = files
+        .par_iter()
+        .flat_map_iter(|path| {
+            let file = std::fs::read(path)
+                .map_err(anyhow::Error::from)
+                .and_then(|data| {
+                    if is_json(path) {
+                        Ok(Some(json::from_slice(&data)?))
+                    } else if is_binary(&data) {
+                        Ok(Some(BytesFile::read(&data)?))
+                    } else {
+                        Ok(None)
+                    }
+                });
+            let problems = match file {
+                Ok(None) => vec![],
+                Ok(Some(file)) => {
+                    checked.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    file.check().iter().map(ToString::to_string).collect()
+                }
+                Err(e) => vec![format!("error: {e:#}")],
+            };
+            problems
+                .into_iter()
+                .map(move |p| format!("{}: {p}", path.display()))
+        })
+        .collect();
+    problems.sort();
+    for problem in &problems {
+        println!("{problem}");
+    }
+    println!(
+        "{} files checked, {} problems",
+        checked.into_inner(),
+        problems.len()
+    );
+    if !problems.is_empty() {
+        std::process::exit(1);
+    }
     Ok(())
 }
 

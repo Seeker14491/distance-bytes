@@ -9,6 +9,7 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 - Decodes every component with its own serializer into a typed struct (`distance_bytes::components`), in every version the game reads, along with the level settings of level versions 0 and 1. Bodies that don't decode are kept as raw bytes. In the corpus, these are only bodies the game itself doesn't read.
 - Converts files to JSON and back losslessly (`distance_bytes::json`). Components are `{"type": "TeleporterEntrance", "version": 4, "guid": 12, "data": {...}}`, and values equal to the prefab's are left out. The module documentation describes the format.
 - Generates a JSON Schema (draft 2020-12) of the JSON format, with the optional `schema` feature (`distance_bytes::json::schema`). By default the schema describes JSON for a new level, with components in the versions the game writes and only the fields those versions have, for checking JSON written by hand or by an LLM. The full schema describes everything `to_json` writes; every file in the corpus fits it.
+- Builds files: `Level::new`, `GameObject::new("CubeGS").with_position(...).with(component)`, and components in the versions the game writes. `assign_guids` gives new objects and components GUIDs above the largest in the file, and `check` reports duplicate GUIDs and references to missing targets or to types the game can't use there (which make it fail to load the level). No file in the corpus has such problems.
 - Handles objects nested any number of levels deep (one Workshop level nests them 469 deep) by growing the stack, on native targets.
 
 ## Layout
@@ -28,7 +29,8 @@ cargo run --release -p distance-bytes-cli -- <command>
 
 - `dump <file>`: print the object tree.
 - `to-json <file> [out] [--compact]`: convert a file to JSON.
-- `from-json <json> <out>`: convert JSON back to a `.bytes` file.
+- `from-json <json> <out> [--assign-guids]`: convert JSON back to a `.bytes` file, warning about problems with GUIDs and references. With `--assign-guids`, objects and components whose GUID is 0 or missing get new ones.
+- `check <paths>...`: report problems with GUIDs and references in `.bytes` files under the paths and in JSON files given by name.
 - `roundtrip <paths>... [--json]`: read and re-write every binary `.bytes` file under the paths and check that the output is identical. With `--json`, each file goes through JSON first.
 - `schema [out] [--full] [--components A,B] [--compact]`: write the JSON Schema of the JSON format. `--components` limits it to those component types (and `Transform` and `LevelSettings`), which keeps it small enough for an LLM prompt (13 KB compact for one type); `--full` describes all JSON `to-json` writes.
 - `stats <paths>...`: statistics about component types and how many bytes are still undecoded.

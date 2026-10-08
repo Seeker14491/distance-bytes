@@ -6,6 +6,7 @@
 //! assert_eq!(file.write(), data);
 //! ```
 
+mod build;
 mod component_id;
 pub mod components;
 mod error;
@@ -19,6 +20,7 @@ mod string;
 mod tree;
 mod visit;
 
+pub use build::{Problem, Source, Target};
 pub use component_id::ComponentId;
 pub use components::ComponentData;
 pub use error::{Error, ErrorKind, Result};

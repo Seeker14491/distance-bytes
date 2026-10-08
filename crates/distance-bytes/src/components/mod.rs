@@ -195,7 +195,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::component_id::ComponentId;
 use crate::error::{ErrorKind, Result};
 use crate::io::{Reader, Writer};
-use crate::visit::{BodyEnd, Visit};
+use crate::tree::Component;
+use crate::visit::{BodyEnd, Visit, Visitor};
 
 macro_rules! component_data {
     ($($ty:ident = $id:ident),* $(,)?) => {
@@ -293,7 +294,29 @@ macro_rules! component_data {
                     $(ComponentData::$ty(data) => data.write_body(w, version, end),)*
                 }
             }
+
+            /// Visits the body as the game does for the given component version.
+            pub(crate) fn visit(&mut self, v: &mut impl Visitor, version: i32) -> Result<()> {
+                match self {
+                    $(ComponentData::$ty(data) => data.visit(v, version),)*
+                }
+            }
         }
+
+        $(
+            impl From<$ty> for ComponentData {
+                fn from(data: $ty) -> Self {
+                    ComponentData::$ty(Box::new(data))
+                }
+            }
+
+            /// A new component with this body, in the version the game writes.
+            impl From<$ty> for Component {
+                fn from(data: $ty) -> Self {
+                    Component::new(data)
+                }
+            }
+        )*
     };
 }
 

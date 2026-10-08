@@ -534,6 +534,58 @@ impl Visitor for FillVisitor {
     }
 }
 
+/// Calls a function on every reference a body has in its version, with the reference's name.
+pub(crate) struct ReferenceVisitor<F> {
+    pub(crate) f: F,
+    /// Whether the body has any references.
+    pub(crate) found: bool,
+}
+
+impl<F: FnMut(&'static str, &mut u32)> Visitor for ReferenceVisitor<F> {
+    fn remaining(&self) -> Option<usize> {
+        None
+    }
+
+    fn value<T: Pod>(&mut self, _name: &'static str, _v: &mut Option<T>) -> Result<()> {
+        Ok(())
+    }
+
+    fn plain<T: Pod + Default + PartialEq>(
+        &mut self,
+        _name: &'static str,
+        _v: &mut T,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn sequence<T: Default>(
+        &mut self,
+        _mark: i32,
+        _name: &'static str,
+        items: &mut Vec<T>,
+        mut f: impl FnMut(&mut Self, &mut T) -> Result<()>,
+    ) -> Result<()> {
+        for item in items {
+            f(self, item)?;
+        }
+        Ok(())
+    }
+
+    fn bytes(&mut self, _name: &'static str, _v: &mut Vec<u8>) -> Result<()> {
+        Ok(())
+    }
+
+    fn count(&mut self, _name: &'static str, len: usize) -> Result<usize> {
+        Ok(len)
+    }
+
+    fn reference(&mut self, name: &'static str, v: &mut u32) -> Result<()> {
+        self.found = true;
+        (self.f)(name, v);
+        Ok(())
+    }
+}
+
 /// A component body with a hand-written serializer, translated from the game's `Visit` method.
 pub(crate) trait Visit: Default + Clone {
     /// The component versions this type decodes. The game doesn't read versions above its

@@ -36,7 +36,8 @@
 //!
 //! When reading, `"type"` must come before `"data"` and `"fields"`, which are read according to
 //! it. A missing `"version"` is the version the game writes for the type, and a missing
-//! `"guid"` is 0.
+//! `"guid"` is 0, which [`Level::assign_guids`](crate::Level::assign_guids) replaces with a new
+//! one.
 
 mod adapter;
 mod format;

@@ -101,7 +101,8 @@ fn with_description(mut schema: Value, description: &str) -> Value {
 }
 
 const GUID_DESCRIPTION: &str = "The ID of the object or component, unique among the objects and \
-    components of the file. Components refer to objects and components by it.";
+    components of the file. Components refer to objects and components by it. Left out (or 0), \
+    it is assigned when the level is built, so give it only to what something refers to.";
 
 impl Builder {
     fn sub<T: JsonSchema>(&mut self) -> Value {
