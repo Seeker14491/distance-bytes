@@ -12,7 +12,11 @@ use distance_bytes::{
 };
 use rayon::prelude::*;
 
+mod prefabs;
 mod trace;
+
+/// Where `dbytes prefabs` writes the prefab defaults.
+const DEFAULTS: &str = "data/prefab-defaults.bytes";
 
 #[derive(Parser)]
 #[command(about = "Tools for Distance .bytes files")]
@@ -100,6 +104,51 @@ enum Command {
         out: PathBuf,
         paths: Vec<PathBuf>,
     },
+    /// Dump the prefab defaults from the game, using the BytesTrace plugin: every prefab with
+    /// all of its values, for `resolve` and `minimize`. Prefabs that the objects of levels under
+    /// the given paths use are dumped too.
+    Prefabs {
+        paths: Vec<PathBuf>,
+        #[arg(short, long, default_value = DEFAULTS)]
+        out: PathBuf,
+        #[arg(long, default_value = "http://localhost:18501")]
+        server: String,
+    },
+    /// Fill in the values that a binary or JSON file leaves to the prefabs of its objects, and
+    /// list what the game skips. Writes JSON if the output ends in `.json`.
+    Resolve {
+        input: PathBuf,
+        output: PathBuf,
+        #[arg(long, default_value = DEFAULTS)]
+        defaults: PathBuf,
+    },
+    /// Leave out the values of a binary or JSON file that are the same as the prefabs'. Writes
+    /// JSON if the output ends in `.json`.
+    Minimize {
+        input: PathBuf,
+        output: PathBuf,
+        #[arg(long, default_value = DEFAULTS)]
+        defaults: PathBuf,
+    },
+    /// Check that minimizing the binary files under the given paths keeps what resolving them
+    /// gives, and count what the game skips in them.
+    ResolveCheck {
+        paths: Vec<PathBuf>,
+        #[arg(long, default_value = DEFAULTS)]
+        defaults: PathBuf,
+    },
+    /// Compare resolving the levels under the given paths with what the game has after reading
+    /// them, using the BytesTrace plugin.
+    ResolveGameCheck {
+        paths: Vec<PathBuf>,
+        #[arg(long, default_value = DEFAULTS)]
+        defaults: PathBuf,
+        #[arg(long, default_value = "http://localhost:18501")]
+        server: String,
+        /// Maximum differences to print per file.
+        #[arg(long, default_value_t = 10)]
+        max: usize,
+    },
     /// Compare our decoder against the game's own reads, using the BytesTrace plugin.
     TraceCheck {
         paths: Vec<PathBuf>,
@@ -137,6 +186,24 @@ fn main() -> Result<()> {
         Command::Relocate { input, output, pad } => relocate(&input, &output, pad),
         Command::Coverage { paths, per } => coverage(&paths, per),
         Command::Synth { out, paths } => synth(&paths, &out),
+        Command::Prefabs { paths, out, server } => prefabs::dump(&server, &paths, &out),
+        Command::Resolve {
+            input,
+            output,
+            defaults,
+        } => prefabs::resolve(&input, &output, &defaults, false),
+        Command::Minimize {
+            input,
+            output,
+            defaults,
+        } => prefabs::resolve(&input, &output, &defaults, true),
+        Command::ResolveCheck { paths, defaults } => prefabs::check(&paths, &defaults),
+        Command::ResolveGameCheck {
+            paths,
+            defaults,
+            server,
+            max,
+        } => prefabs::game_check(&paths, &defaults, &server, max),
         Command::TraceCheck { paths, server, max } => {
             let files: Vec<_> = binary_files(&paths)?
                 .into_iter()

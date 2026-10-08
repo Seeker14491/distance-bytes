@@ -5,6 +5,8 @@
 //! sentinel or to the prefab's, and check for it when reading. Those values are `Option`s here,
 //! with `None` for the empty marker.
 
+use std::any::Any;
+use std::collections::HashMap;
 use std::ops::RangeInclusive;
 
 use serde::{Deserialize, Serialize};
@@ -14,7 +16,7 @@ use crate::io::{EMPTY_MARKER, Reader, Writer, mark};
 use crate::string::DString;
 
 /// A value with a fixed binary encoding ("POD" in the game's serializer).
-pub(crate) trait Pod: Sized {
+pub(crate) trait Pod: Sized + Clone + 'static {
     /// Whether the game checks for the end of the body before reading the value.
     const BOUNDS_CHECKED: bool = true;
 
@@ -582,6 +584,95 @@ impl<F: FnMut(&'static str, &mut u32)> Visitor for ReferenceVisitor<F> {
     fn reference(&mut self, name: &'static str, v: &mut u32) -> Result<()> {
         self.found = true;
         (self.f)(name, v);
+        Ok(())
+    }
+}
+
+/// Fills a body's missing values from another body of the same type: first [`collect`] the
+/// other's values, then [`fill`] the body, visiting both in the same version. Values are matched
+/// by name and by how many came before with that name. The game reads a list as a whole and
+/// creates its elements anew, so lists are skipped.
+///
+/// [`collect`]: DefaultsVisitor::collect
+/// [`fill`]: DefaultsVisitor::fill
+#[derive(Default)]
+pub(crate) struct DefaultsVisitor {
+    values: HashMap<(&'static str, u32), Box<dyn Any>>,
+    seen: HashMap<&'static str, u32>,
+    filling: bool,
+    /// Whether any value was filled.
+    pub(crate) filled: bool,
+}
+
+impl DefaultsVisitor {
+    pub(crate) fn collect() -> Self {
+        Self::default()
+    }
+
+    /// Switches from collecting to filling.
+    pub(crate) fn fill(self) -> Self {
+        DefaultsVisitor {
+            values: self.values,
+            filling: true,
+            ..Self::default()
+        }
+    }
+}
+
+impl Visitor for DefaultsVisitor {
+    fn remaining(&self) -> Option<usize> {
+        None
+    }
+
+    fn value<T: Pod>(&mut self, name: &'static str, v: &mut Option<T>) -> Result<()> {
+        let seen = self.seen.entry(name).or_default();
+        let key = (name, *seen);
+        *seen += 1;
+        if !self.filling {
+            if let Some(value) = v {
+                self.values.insert(key, Box::new(value.clone()));
+            }
+        } else if v.is_none()
+            && let Some(value) = self.values.get(&key).and_then(|b| b.downcast_ref::<T>())
+        {
+            *v = Some(value.clone());
+            self.filled = true;
+        }
+        Ok(())
+    }
+
+    fn plain<T: Pod + Default + PartialEq>(
+        &mut self,
+        _name: &'static str,
+        _v: &mut T,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn sequence<T: Default>(
+        &mut self,
+        _mark: i32,
+        _name: &'static str,
+        _items: &mut Vec<T>,
+        _f: impl FnMut(&mut Self, &mut T) -> Result<()>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn bytes(&mut self, _name: &'static str, _v: &mut Vec<u8>) -> Result<()> {
+        Ok(())
+    }
+
+    fn count(&mut self, _name: &'static str, len: usize) -> Result<usize> {
+        Ok(len)
+    }
+
+    fn records<T: Default>(
+        &mut self,
+        _n: usize,
+        _items: &mut Vec<T>,
+        _f: impl FnMut(&mut Self, &mut T) -> Result<()>,
+    ) -> Result<()> {
         Ok(())
     }
 }

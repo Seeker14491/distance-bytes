@@ -487,7 +487,7 @@ enum Node<'a> {
     Component(&'a Component),
 }
 
-enum NodeMut<'a> {
+pub(crate) enum NodeMut<'a> {
     Object(&'a mut GameObject),
     Component(&'a mut Component),
 }
@@ -510,7 +510,7 @@ fn walk<'a>(roots: Vec<&'a GameObject>, mut f: impl FnMut(Node<'a>)) {
 }
 
 /// [`walk`] with changes.
-fn walk_mut(roots: Vec<&mut GameObject>, mut f: impl FnMut(NodeMut<'_>)) {
+pub(crate) fn walk_mut(roots: Vec<&mut GameObject>, mut f: impl FnMut(NodeMut<'_>)) {
     let mut stack: Vec<_> = roots.into_iter().rev().collect();
     while let Some(obj) = stack.pop() {
         f(NodeMut::Object(&mut *obj));

@@ -1,14 +1,20 @@
 //! Round-trips every binary `.bytes` file under the directories listed in the
 //! `DISTANCE_BYTES_CORPUS` environment variable (separated like `PATH`), directly and through
-//! JSON, and with the `schema` feature validates the JSON against the full schema. Skipped if
-//! unset.
+//! JSON, and with the `schema` feature validates the JSON against the full schema. Also checks
+//! that minimizing each file against `data/prefab-defaults.bytes` keeps what resolving it gives.
+//! Skipped if unset.
 
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{LazyLock, Mutex};
 
 use distance_bytes::io::mark;
-use distance_bytes::{BytesFile, json};
+use distance_bytes::{BytesFile, PrefabDefaults, json};
+
+static DEFAULTS: LazyLock<PrefabDefaults> = LazyLock::new(|| {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/prefab-defaults.bytes");
+    PrefabDefaults::read(&std::fs::read(path).unwrap()).unwrap()
+});
 
 fn collect(path: &Path, out: &mut Vec<PathBuf>) {
     if path.is_dir() {
@@ -31,6 +37,19 @@ fn check(data: &[u8]) -> Option<String> {
     };
     if file.write() != data {
         return Some("output differs".into());
+    }
+    // Compared as written, since a NaN isn't equal to itself.
+    let mut resolved = file.clone();
+    resolved.resolve(&DEFAULTS);
+    let mut minimized = file.clone();
+    minimized.minimize(&DEFAULTS);
+    let minimized_data = minimized.write();
+    if BytesFile::read(&minimized_data).map(|f| f.write()).ok() != Some(minimized_data) {
+        return Some("the minimized file doesn't read back".into());
+    }
+    minimized.resolve(&DEFAULTS);
+    if minimized.write() != resolved.write() {
+        return Some("resolving the minimized file gives something else".into());
     }
     let text = match json::to_string(&file) {
         Ok(text) => text,
@@ -134,5 +153,8 @@ fn corpus_round_trip() {
     } else {
         ""
     };
-    eprintln!("{checked} files round-tripped, directly and through JSON{validated}");
+    eprintln!(
+        "{checked} files round-tripped, directly and through JSON{validated}; minimizing them \
+         keeps what resolving gives"
+    );
 }

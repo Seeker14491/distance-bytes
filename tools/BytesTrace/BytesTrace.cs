@@ -30,6 +30,7 @@ public class BytesTracePlugin : BaseUnityPlugin
     {
         var harmony = new Harmony("BytesTrace");
         harmony.PatchAll(typeof(GamePatches));
+        harmony.PatchAll(typeof(FullWrite));
         Tracer.Patch(harmony);
     }
 
@@ -150,10 +151,160 @@ public class BytesTracePlugin : BaseUnityPlugin
                 Resource.UnloadUnusedAssets();
                 break;
             }
+            case "/level-bytes-full":
+            {
+                if (!_level.LoadFromBytes(data, true, false))
+                {
+                    response.StatusCode = 422;
+                }
+                else
+                {
+                    FullWrite.Active = true;
+                    try
+                    {
+                        Respond(response, Serializer.SaveLevelToBytes<BinarySerializer>(_level));
+                    }
+                    finally
+                    {
+                        FullWrite.Active = false;
+                    }
+                }
+                _level.ClearAndReset(true);
+                Resource.UnloadUnusedAssets();
+                break;
+            }
+            case "/prefab-names":
+                Respond(response, string.Join("\n", PrefabNames().ToArray()) + "\n");
+                break;
+            case "/prefab-defaults":
+            {
+                // Some prefab names end in a space.
+                var names = Encoding.UTF8.GetString(data).Split('\n').Where(n => n.Length > 0);
+                FullWrite.Active = true;
+                try
+                {
+                    Respond(response, PrefabDefaults(names));
+                }
+                finally
+                {
+                    FullWrite.Active = false;
+                }
+                break;
+            }
             default:
                 response.StatusCode = (int)HttpStatusCode.NotFound;
                 break;
         }
+    }
+
+    // The names of the level editor's prefabs, the spline road and tunnel prefabs the game builds
+    // from templates, and the prefabs the game looks up outside the level editor's folder.
+    private static IEnumerable<string> PrefabNames()
+    {
+        var names = new List<string>();
+        foreach (var obj in Resource.LoadAllInFolder<GameObject>("Prefabs/LevelEditor/"))
+            names.Add(obj.name);
+        foreach (var template in Resources.LoadAll("SplineRoadTemplates", typeof(TextAsset)))
+        {
+            foreach (var road in new[] { "SplineRoad", "EmpireSplineRoad", "VirusSplineRoad", "GlassSplineRoad" })
+                names.Add(road + template.name);
+        }
+        foreach (var template in Resources.LoadAll("SplineTunnelTemplates", typeof(TextAsset)))
+        {
+            if (template.name.StartsWith("Tunnel"))
+                names.Add("EmpireTunnel" + template.name.Substring("Tunnel".Length));
+        }
+        names.Add("LevelSettings");
+        names.Add("Group");
+        return names.Distinct().OrderBy(n => n, StringComparer.Ordinal);
+    }
+
+    // As JSON lines: every named prefab, then every component type that a level may add to an
+    // object whose prefab lacks it. Each is written with all of its values, as the game has them
+    // when it reads a level: it instantiates the prefab (running Awake) and reads the file's values
+    // into it, or adds the component to the object.
+    private static string PrefabDefaults(IEnumerable<string> names)
+    {
+        var sb = new StringBuilder();
+        foreach (var name in names)
+        {
+            sb.Append("{\"kind\":\"prefab\",\"name\":").Append(Tracer.Json(name));
+            GameObject prefab;
+            try
+            {
+                prefab = Serializer.GetPrefabWithName(name);
+            }
+            catch (Exception e)
+            {
+                sb.Append(",\"error\":").Append(Tracer.Json(e.GetType().Name + ": " + e.Message)).Append("}\n");
+                continue;
+            }
+            if (prefab == null)
+            {
+                sb.Append(",\"error\":\"not found\"}\n");
+                continue;
+            }
+            sb.Append(",\"tag\":").Append(Tracer.Json(prefab.tag));
+            var containers = prefab.GetComponentsInChildren<Transform>(true)
+                .Where(t => t != prefab.transform && t.tag == SerialUtils.prefabContainerTag_)
+                .Select(t => Tracer.Json(Resource.GetGameObjectNameWithRootName(t.gameObject)))
+                .ToArray();
+            if (containers.Length > 0)
+                sb.Append(",\"containers\":[").Append(string.Join(",", containers)).Append(']');
+
+            // As in Deserializer.VisitGameObject.
+            var obj = Instantiate(prefab);
+            obj.name = prefab.name;
+            if (prefab.tag == "LegacySplineSegmentPrefab")
+            {
+                obj.SetActive(true);
+                obj.transform.parent = null;
+                obj.tag = "Untagged";
+            }
+            try
+            {
+                AppendBytes(sb, Serializer.SaveGameObjectToBytes<BinarySerializer>(obj, null));
+            }
+            finally
+            {
+                DestroyImmediate(obj);
+            }
+        }
+
+        // The game adds a component that the file has and the object lacks if the added-components
+        // prefab has its type, which it otherwise only uses to compare against when writing.
+        foreach (var c in G.Sys.ResourceManager_.AddedComponentsPrefab_.GetComponents<Component>())
+        {
+            if (c is Transform || !Serializer.IsComponentSerializable(c))
+                continue;
+            var type = c.GetType();
+            var obj = new GameObject(type.Name);
+            try
+            {
+                var added = obj.AddComponent(type);
+                sb.Append("{\"kind\":\"added\",\"type\":").Append(Tracer.Json(type.Name));
+                if (added == null)
+                {
+                    sb.Append(",\"error\":\"not added\"}\n");
+                    continue;
+                }
+                sb.Append(",\"id\":").Append((int)added.ToISerializable().ID_);
+                AppendBytes(sb, Serializer.SaveGameObjectToBytes<BinarySerializer>(obj, null));
+            }
+            finally
+            {
+                DestroyImmediate(obj);
+            }
+        }
+        return sb.ToString();
+    }
+
+    private static void AppendBytes(StringBuilder sb, byte[] bytes)
+    {
+        if (bytes == null)
+            sb.Append(",\"error\":\"write failed\"}\n");
+        else
+            sb.Append(",\"bytes\":\"").Append(Convert.ToBase64String(bytes)).Append("\"}\n");
     }
 
     private static byte[] ReadBody(HttpListenerRequest request)
@@ -166,10 +317,17 @@ public class BytesTracePlugin : BaseUnityPlugin
         return memory.ToArray();
     }
 
-    private static void Respond(HttpListenerResponse response, string body)
+    private static void Respond(HttpListenerResponse response, string body) =>
+        Respond(response, Encoding.UTF8.GetBytes(body), "application/x-ndjson; charset=utf-8");
+
+    private static void Respond(HttpListenerResponse response, byte[] bytes, string contentType = "application/octet-stream")
     {
-        var bytes = Encoding.UTF8.GetBytes(body);
-        response.ContentType = "application/x-ndjson; charset=utf-8";
+        if (bytes == null)
+        {
+            response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            return;
+        }
+        response.ContentType = contentType;
         response.ContentLength64 = bytes.Length;
         response.OutputStream.Write(bytes, 0, bytes.Length);
     }
@@ -213,6 +371,25 @@ public class BytesTracePlugin : BaseUnityPlugin
             __result = Resource.LoadPrefab("CarReplayData", false);
             return false;
         }
+    }
+}
+
+/// <summary>
+/// While active, the serializer writes every component with all of its values. Without a prefab
+/// it would still compare components against the added-components prefab.
+/// </summary>
+internal static class FullWrite
+{
+    public static bool Active;
+
+    [HarmonyPatch(typeof(Serializer), "VisitComponentFromObject")]
+    [HarmonyPrefix]
+    private static bool WithoutPrefab(Serializer __instance, Component component)
+    {
+        if (!Active)
+            return true;
+        __instance.VisitComponent(component, null);
+        return false;
     }
 }
 
@@ -442,7 +619,7 @@ internal static class Tracer
     private static string FloatBits(float f) =>
         BitConverter.ToInt32(BitConverter.GetBytes(f), 0).ToString(CultureInfo.InvariantCulture);
 
-    private static string Json(string s)
+    internal static string Json(string s)
     {
         if (s == null)
             return "null";

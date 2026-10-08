@@ -250,7 +250,7 @@ pub(crate) fn write_fields(w: &mut Writer, fields: &[Field], format: FieldFormat
     }
 }
 
-fn write_value(w: &mut Writer, value: &Value) {
+pub(crate) fn write_value(w: &mut Writer, value: &Value) {
     match value {
         Value::Bool(v) => w.u8((*v).into()),
         Value::Int(v) => w.i32(*v),

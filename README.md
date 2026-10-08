@@ -10,6 +10,7 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 - Converts files to JSON and back losslessly (`distance_bytes::json`). Components are `{"type": "TeleporterEntrance", "version": 4, "guid": 12, "data": {...}}`, and values equal to the prefab's are left out. The module documentation describes the format.
 - Generates a JSON Schema (draft 2020-12) of the JSON format, with the optional `schema` feature (`distance_bytes::json::schema`). By default the schema describes JSON for a new level, with components in the versions the game writes and only the fields those versions have, for checking JSON written by hand or by an LLM. The full schema describes everything `to_json` writes; every file in the corpus fits it.
 - Builds files: `Level::new`, `GameObject::new("CubeGS").with_position(...).with(component)`, and components in the versions the game writes. `assign_guids` gives new objects and components GUIDs above the largest in the file, and `check` reports duplicate GUIDs and references to missing targets or to types the game can't use there (which make it fail to load the level). No file in the corpus has such problems.
+- Fills in the values a file leaves to the prefabs of its objects, as the game reads them (`resolve`), and leaves out those that are the same again (`minimize`), with `PrefabDefaults`. `resolve` also reports what the game skips or merges: objects without a prefab, children and components the prefab lacks, components the prefab has only as a subclass, repeats, and materials a renderer lacks. The defaults are in `data/prefab-defaults.bytes`: every prefab of the game's level editor (1,524) with every value, as the game creates them, dumped from the game with the BytesTrace plugin.
 - Handles objects nested any number of levels deep (one Workshop level nests them 469 deep) by growing the stack, on native targets.
 
 ## Layout
@@ -17,7 +18,8 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 - `crates/distance-bytes`: the library.
 - `crates/distance-bytes-cli`: the `dbytes` tool.
 - `tools/schema-extract`: generates `schema/components.json`, the Rust `ComponentId` constants and the table of generic field types from the game's `Assembly-CSharp.dll`.
-- `tools/BytesTrace`: a BepInEx plugin that runs the game as an HTTP server and reports every value the game's own deserializer reads, so our decoder can be checked against it.
+- `tools/BytesTrace`: a BepInEx plugin that runs the game as an HTTP server and reports every value the game's own deserializer reads, so our decoder can be checked against it. It also dumps the prefab defaults.
+- `data/prefab-defaults.bytes`: the prefab defaults, the default for the `dbytes` commands that use them.
 
 Game files (`game/`, `game_assets_dump/`) are not part of the repository.
 
@@ -39,6 +41,11 @@ cargo run --release -p distance-bytes-cli -- <command>
 - `trace-check <paths>...`: compare our decoder against the game, using the BytesTrace server. It reports mismatches, failed game loads and the share of the game-read bytes that we decode.
 - `coverage <paths>... [--per N]`: for every decoded (component, version) pair, the N smallest files that contain it. Gives a small set of files for `trace-check`.
 - `synth --out <dir> <paths>...`: for every decoded component version that no file under the paths has, write a copy of a file with that component, replaced by a sample of that version with every value set. Use it with `trace-check` to test those versions.
+- `resolve <in> <out> [--defaults <file>]`: fill in the values a binary or JSON file leaves to the prefabs, and print what the game skips. Writes JSON if `out` ends in `.json`.
+- `minimize <in> <out> [--defaults <file>]`: leave out the values that are the same as the prefabs'.
+- `resolve-check <paths>...`: check that resolving each binary file under the paths gives the same after minimizing it, count what the game skips, and total the sizes.
+- `prefabs [<paths>...] [--out <file>]`: dump the prefab defaults from the game, using the BytesTrace server, along with the prefabs that levels under the paths use.
+- `resolve-game-check <paths>... [--max N]`: load each level under the paths in the game, using the BytesTrace server, and compare what the game has afterwards with what resolving the level gives.
 
 ## Tests
 
@@ -48,7 +55,7 @@ cargo test --workspace --all-features
 
 `--all-features` includes the schema tests. `cargo test -- --ignored` also checks that every `f32` bit pattern survives JSON (about half a minute).
 
-The corpus test round-trips every binary `.bytes` file, directly and through JSON, under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). With the `schema` feature it also validates the JSON against the full schema, which triples its time. Use absolute paths, since tests run in the crate directory:
+The corpus test round-trips every binary `.bytes` file, directly and through JSON, and checks that minimizing it against `data/prefab-defaults.bytes` keeps what resolving it gives, under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). With the `schema` feature it also validates the JSON against the full schema, which triples its time. Use absolute paths, since tests run in the crate directory:
 
 ```bash
 DISTANCE_BYTES_CORPUS="C:/<repo>/game_assets_dump/Assets/Resources;C:/Users/<you>/Documents/My Games/Distance" cargo test --release --all-features --test corpus
@@ -78,6 +85,11 @@ It listens on `localhost:18501` (set `BYTES_TRACE_PORT` to change it). Endpoints
 
 - `/level-bytes-trace`
 - `/gameobject-bytes-trace`
+- `/level-bytes-full`
+- `/prefab-names` (with an empty body)
+- `/prefab-defaults`
 - `/ping` (GET)
 
-Each line of the response is a JSON object for one read, with the absolute offset `o`, length `l`, type `t`, field name `n` and value `v`. Floats are given as their bit patterns. Scope headers have `mark` and `len`. `skip` lines mean the game didn't read a scope exactly to its end and seeked to the end; reads past a scope's end that the game seeked back from are marked `overread`. The last line reports whether the game loaded the file successfully.
+For the trace endpoints, each line of the response is a JSON object for one read, with the absolute offset `o`, length `l`, type `t`, field name `n` and value `v`. Floats are given as their bit patterns. Scope headers have `mark` and `len`. `skip` lines mean the game didn't read a scope exactly to its end and seeked to the end; reads past a scope's end that the game seeked back from are marked `overread`. The last line reports whether the game loaded the file successfully.
+
+`/level-bytes-full` loads a level and returns it as the game writes it, with every component and value rather than only those that differ from the prefabs (status 422 if the game can't load it). `/prefab-names` lists the level editor's prefabs, and `/prefab-defaults` takes prefab names, one per line, and returns a JSON line per prefab with the `.bytes` of an object created from it, in full, and one per component type the game adds to objects.

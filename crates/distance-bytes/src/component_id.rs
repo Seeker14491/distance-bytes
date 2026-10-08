@@ -46,6 +46,39 @@ impl ComponentId {
         }
     }
 
+    /// Whether the game's class for this type is the class of `base` or a subclass of it, so
+    /// that the game finds a component of this type where it looks for one of `base`.
+    pub fn is_a(self, base: ComponentId) -> bool {
+        use ComponentId as C;
+        // The classes with a component type that subclass another (from `base_classes` in
+        // schema/components.json).
+        const SUBCLASSES: &[(ComponentId, &[ComponentId])] = &[
+            (C::TRACK_SEGMENT, &[C::SPLINE_SEGMENT]),
+            (
+                C::CAR_SPAWNER,
+                &[
+                    C::RACE_START_CAR_SPAWNER,
+                    C::LEVEL_EDITOR_CAR_SPAWNER,
+                    C::ARENA_CAR_SPAWNER,
+                ],
+            ),
+            (
+                C::ADVENTURE_MODE,
+                &[
+                    C::DEMO_MODE,
+                    C::LOST_TO_ECHOES_MODE,
+                    C::NEXUS_MODE,
+                    C::THE_OTHER_SIDE_MODE,
+                ],
+            ),
+            (C::LOST_TO_ECHOES_MODE, &[C::THE_OTHER_SIDE_MODE]),
+        ];
+        self == base
+            || SUBCLASSES
+                .iter()
+                .any(|&(b, subs)| b == base && subs.contains(&self))
+    }
+
     /// `(version written, built-in component wrapper)`.
     fn class(self) -> Option<(i32, bool)> {
         CLASSES

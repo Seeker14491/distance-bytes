@@ -43,6 +43,8 @@ pub enum ErrorKind {
     /// A component body in the generic format has no fields, which can't be told apart from
     /// hand-written data.
     NoFields,
+    /// The file isn't prefab defaults written by `PrefabDefaults::write`.
+    NotPrefabDefaults,
 }
 
 impl Error {
@@ -72,6 +74,7 @@ impl fmt::Display for Error {
             ErrorKind::UnknownField => write!(f, "unknown field"),
             ErrorKind::UnsupportedVersion(v) => write!(f, "unsupported component version {v}"),
             ErrorKind::NoFields => write!(f, "no fields"),
+            ErrorKind::NotPrefabDefaults => write!(f, "not prefab defaults"),
         }
     }
 }

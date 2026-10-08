@@ -15,6 +15,7 @@ mod generated;
 pub mod io;
 pub mod json;
 mod legacy_settings;
+mod prefabs;
 mod stack;
 mod string;
 mod tree;
@@ -27,6 +28,7 @@ pub use error::{Error, ErrorKind, Result};
 pub use fields::{Field, FieldType, FieldValue, Value, field_type};
 pub use io::{TraceEvent, TraceValue};
 pub use legacy_settings::LegacyLevelSettings;
+pub use prefabs::{Prefab, PrefabDefaults, Unresolved};
 pub use string::DString;
 pub use tree::{
     BytesFile, Component, ComponentBody, ComponentKind, GameObject, Layer, LayerFlags,
