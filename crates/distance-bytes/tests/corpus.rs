@@ -2,13 +2,14 @@
 //! `DISTANCE_BYTES_CORPUS` environment variable (separated like `PATH`), directly and through
 //! JSON, and with the `schema` feature validates the JSON against the full schema. Also checks
 //! that minimizing each file against `data/prefab-defaults.bytes` keeps what resolving it gives,
-//! and that the states of replays decode. Skipped if unset.
+//! and that the states and events of replays decode. Skipped if unset.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex};
 
 use distance_bytes::io::mark;
+use distance_bytes::replay::PlayerEvent;
 use distance_bytes::{BytesFile, PrefabDefaults, json};
 
 static DEFAULTS: LazyLock<PrefabDefaults> = LazyLock::new(|| {
@@ -40,9 +41,21 @@ fn check(data: &[u8]) -> Option<String> {
     }
     if let BytesFile::GameObject(obj) = &file
         && let Some((replay, version)) = obj.car_replay_data()
-        && let Err(e) = replay.states(version)
     {
-        return Some(format!("replay states: {e}"));
+        if let Err(e) = replay.states(version) {
+            return Some(format!("replay states: {e}"));
+        }
+        match replay.events() {
+            Err(e) => return Some(format!("replay events: {e}")),
+            Ok(events)
+                if events
+                    .iter()
+                    .any(|e| matches!(e.event, PlayerEvent::Unknown { .. })) =>
+            {
+                return Some("replay events that don't decode".into());
+            }
+            Ok(_) => {}
+        }
     }
     // Compared as written, since a NaN isn't equal to itself.
     let mut resolved = file.clone();

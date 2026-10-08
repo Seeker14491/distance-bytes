@@ -1,7 +1,7 @@
 // Tests the browser build in `pkg` (`wasm-bindgen --target web`) with Node: the example level
 // builds, and every binary .bytes file under the directories in DISTANCE_BYTES_CORPUS (separated
 // by `;`) reads and writes back byte-identical, also through JSON, as in the Rust corpus test, and
-// the states of replays decode.
+// the states and events of replays decode.
 //
 //   node crates/distance-bytes-wasm/tests/corpus.mjs
 
@@ -25,6 +25,7 @@ const defaults = PrefabDefaults.read(readFileSync(join(root, 'data/prefab-defaul
   assert.deepEqual(BytesFile.read(bytes).write(), bytes);
   assert.deepEqual(level.clone().resolve(defaults), []);
   assert.equal(level.replayStates(), undefined);
+  assert.equal(level.replayEvents(), undefined);
   assert.ok(defaults.prefabNames().includes('CubeGS'));
   assert.equal(defaults.prefab('CubeGS').kind, 'game_object');
   assert.equal(defaults.prefab('NoSuchPrefab'), undefined);
@@ -83,6 +84,10 @@ corpus: for (const dir of dirs) {
         assert.equal(states.rotations.length, n * 4, 'replay rotations');
         assert.equal(typeof states.inputs(n - 1)?.boost, n ? 'boolean' : 'undefined');
         assert.equal(states.inputs(n), undefined);
+        const events = file.replayEvents();
+        assert.equal(events[0]?.type, 'CarRespawn', 'the first event');
+        assert.equal(events[0].frame, -300, 'the first event');
+        assert.ok(events.every(e => e.type !== 'Unknown'), 'unknown events');
         replays++;
       }
       if (data.length > largest.size) largest = { size: data.length, path };

@@ -1,50 +1,49 @@
-//! Replays: their decoded states, and a check of them against the game's.
+//! Replays: their decoded states and events, and a check of them against the game's.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use distance_bytes::io::Writer;
-use distance_bytes::replay::{self, CarState};
+use distance_bytes::replay::{self, CarState, ReplayEvent};
 use distance_bytes::{BytesFile, ComponentBody, ComponentData, ComponentKind, GameObject};
 use serde::Serialize;
+use serde_json::{Map, Value};
 
-/// The replay data of a replay file, with its version.
-fn states_of(path: &Path) -> Result<Option<(i32, Vec<CarState>)>> {
-    let data = std::fs::read(path)?;
-    let Ok(BytesFile::GameObject(obj)) = BytesFile::read(&data) else {
-        return Ok(None);
-    };
-    let Some((replay, version)) = obj.car_replay_data() else {
-        return Ok(None);
-    };
-    let states = replay
-        .states(version)
-        .with_context(|| path.display().to_string())?;
-    Ok(Some((version, states)))
-}
-
-/// Writes the states of a replay as JSON lines, with the inputs unpacked.
-pub fn print(input: &Path, output: Option<&Path>) -> Result<()> {
+/// Writes the states of a replay as JSON lines, with the inputs unpacked, or with `events`
+/// its events.
+pub fn print(input: &Path, output: Option<&Path>, events: bool) -> Result<()> {
     #[derive(Serialize)]
     struct Line<'a> {
         #[serde(flatten)]
         state: &'a CarState,
         inputs: replay::Inputs,
     }
-    let Some((_, states)) = states_of(input)? else {
+    let data = std::fs::read(input)?;
+    let file = BytesFile::read(&data).with_context(|| input.display().to_string())?;
+    let replay = match &file {
+        BytesFile::GameObject(obj) => obj.car_replay_data(),
+        _ => None,
+    };
+    let Some((replay, version)) = replay else {
         bail!("{} isn't a replay", input.display());
     };
     let mut out: Box<dyn Write> = match output {
         Some(path) => Box::new(std::io::BufWriter::new(std::fs::File::create(path)?)),
         None => Box::new(std::io::stdout().lock()),
     };
-    for state in &states {
-        let line = Line {
-            state,
-            inputs: state.inputs(),
-        };
-        writeln!(out, "{}", serde_json::to_string(&line)?)?;
+    if events {
+        for event in replay.events()? {
+            writeln!(out, "{}", serde_json::to_string(&event)?)?;
+        }
+    } else {
+        for state in &replay.states(version)? {
+            let line = Line {
+                state,
+                inputs: state.inputs(),
+            };
+            writeln!(out, "{}", serde_json::to_string(&line)?)?;
+        }
     }
     out.flush()?;
     Ok(())
@@ -61,11 +60,13 @@ struct Totals {
     largest: [f32; 4],
     /// Whether frames or inputs differ.
     other: bool,
+    events: usize,
+    different_events: usize,
 }
 
-/// Compares the states of the replays among `files` with those the game decodes, using the
-/// BytesTrace plugin. With `older`, also those of each replay converted to versions 5 and 4,
-/// which no recorded replay has.
+/// Compares the states and events of the replays among `files` with those the game decodes,
+/// using the BytesTrace plugin. With `older`, also those of each replay converted to versions 5
+/// and 4, which no recorded replay has.
 pub fn check(files: &[PathBuf], server: &str, max: usize, older: bool) -> Result<()> {
     let mut totals = Totals::default();
     for path in files {
@@ -87,16 +88,20 @@ pub fn check(files: &[PathBuf], server: &str, max: usize, older: bool) -> Result
         for (version, data) in files {
             let label = format!("{} (v{version})", path.display());
             // Read back what was converted, to check it as a file the game would load.
-            let ours = match BytesFile::read(&data)? {
+            let (states, events) = match BytesFile::read(&data)? {
                 BytesFile::GameObject(obj) => {
                     let (replay, version) = obj.car_replay_data().context("no replay")?;
-                    replay.states(version).context(label.clone())?
+                    let states = replay.states(version).context(label.clone())?;
+                    (states, replay.events().context(label.clone())?)
                 }
                 _ => bail!("{label}: not a game object"),
             };
-            match game_states(server, &data)? {
-                Some(game) => compare(&label, &ours, &game, max, &mut totals)?,
+            match game(server, "replay-states", &data)? {
+                Some(game) => compare(&label, &states, &game, max, &mut totals)?,
                 None => println!("{label}: the game didn't load it"),
+            }
+            if let Some(game) = game(server, "replay-events", &data)? {
+                compare_events(&label, &events, &String::from_utf8(game)?, max, &mut totals)?;
             }
         }
     }
@@ -112,12 +117,17 @@ pub fn check(files: &[PathBuf], server: &str, max: usize, older: bool) -> Result
             totals.other
         );
     }
+    println!(
+        "{} events checked, {} differ",
+        totals.events, totals.different_events
+    );
     Ok(())
 }
 
-/// The states the game decodes from a replay file, as it keeps them.
-fn game_states(server: &str, data: &[u8]) -> Result<Option<Vec<u8>>> {
-    let response = ureq::post(&format!("{server}/replay-states"))
+/// What the game gives for a replay file at an endpoint: its states as it keeps them, or its
+/// events as JSON lines.
+fn game(server: &str, endpoint: &str, data: &[u8]) -> Result<Option<Vec<u8>>> {
+    let response = ureq::post(&format!("{server}/{endpoint}"))
         .config()
         .http_status_as_error(false)
         .build()
@@ -192,6 +202,107 @@ fn compare(
         }
     }
     Ok(())
+}
+
+/// Compares events with those the game reads, which are JSON lines with the frame, the event's
+/// type and the fields of its data: floats as `{"f32": bits}` and structs as objects.
+fn compare_events(
+    label: &str,
+    ours: &[ReplayEvent],
+    game: &str,
+    max: usize,
+    totals: &mut Totals,
+) -> Result<()> {
+    let game: Vec<Value> = game
+        .lines()
+        .map(serde_json::from_str)
+        .collect::<Result<_, _>>()?;
+    let mut shown = 0;
+    // Events past the end of the shorter list differ.
+    totals.events += ours.len().max(game.len());
+    if ours.len() != game.len() {
+        println!(
+            "{label}: {} events, the game has {}",
+            ours.len(),
+            game.len()
+        );
+        totals.different_events += ours.len().abs_diff(game.len());
+        shown = max;
+    }
+    for (i, (o, g)) in ours.iter().zip(&game).enumerate() {
+        let Value::Object(mut ours) = serde_json::to_value(o)? else {
+            bail!("an event isn't an object");
+        };
+        let event = ours.remove("type");
+        let frame = ours.remove("frame");
+        let ours: Map<String, Value> = ours.into_iter().map(|(k, v)| (k, ours_value(v))).collect();
+        let mut theirs = Map::new();
+        if let Some(Value::Object(data)) = g.get("data") {
+            for (name, value) in data {
+                // Not written: the game sets it as it sends the event.
+                if name == "silent_" {
+                    continue;
+                }
+                theirs.insert(field_name(name), game_value(value));
+            }
+        }
+        if frame.as_ref() != g.get("frame") || event.as_ref() != g.get("event") || ours != theirs {
+            totals.different_events += 1;
+            if shown < max {
+                println!(
+                    "{label}: event {i}: {}, game {g}",
+                    serde_json::to_string(o)?
+                );
+                shown += 1;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Floats as their bits, to compare them exactly.
+fn ours_value(v: Value) -> Value {
+    match v {
+        Value::Number(n) if n.is_f64() => {
+            let f = n.as_f64().expect("a float") as f32;
+            Value::from(format!("f32:{}", f.to_bits()))
+        }
+        Value::Array(a) => Value::Array(a.into_iter().map(ours_value).collect()),
+        v => v,
+    }
+}
+
+/// A value the game gave, as `ours_value` gives ours: vectors as arrays, and structs of one
+/// field (handles) as that field.
+fn game_value(v: &Value) -> Value {
+    let Value::Object(fields) = v else {
+        return v.clone();
+    };
+    if let Some(bits) = fields.get("f32").and_then(Value::as_i64) {
+        return Value::from(format!("f32:{}", bits as u32));
+    }
+    let keys: Vec<_> = fields.keys().map(String::as_str).collect();
+    if keys == ["x", "y", "z"] || keys == ["x", "y", "z", "w"] {
+        return Value::Array(fields.values().map(game_value).collect());
+    }
+    match fields.values().next() {
+        Some(only) if fields.len() == 1 => game_value(only),
+        _ => v.clone(),
+    }
+}
+
+/// Our name of a field of the game's: `fastRespawn_` is `fast_respawn`, `planeLS` `plane_ls`.
+fn field_name(name: &str) -> String {
+    let mut out = String::new();
+    let mut previous = None;
+    for c in name.trim_end_matches('_').chars() {
+        if c.is_ascii_uppercase() && previous.is_some_and(|p: char| p.is_ascii_lowercase()) {
+            out.push('_');
+        }
+        out.push(c.to_ascii_lowercase());
+        previous = Some(c);
+    }
+    out
 }
 
 /// A copy of a replay's object whose replay data has `states` in `version`: version 5's

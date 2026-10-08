@@ -8,10 +8,13 @@
 //! ramps (later versions). The game decompresses them into states again, which follow the
 //! curves rather than the recorded positions, within about 3 cm.
 //!
-//! [`CarReplayData::states`] gives the states the game plays. They're computed as the game
-//! computes them, in the same order and precision: the game's Mono keeps the values within an
-//! expression in double precision, and rounds them to single precision when it stores them
-//! (locals, arguments, fields and return values).
+//! [`CarReplayData::states`] gives the states the game plays, and [`CarReplayData::events`] the
+//! player events, such as respawns, jumps and checkpoints (see [`events`]).
+//!
+//! The states are the game's to the bit. They're computed as the game computes them, in the
+//! same order and precision: the game's Mono keeps the values within an expression in double
+//! precision, and rounds them to single precision when it stores them (locals, arguments, fields
+//! and return values).
 
 use std::collections::VecDeque;
 
@@ -21,6 +24,10 @@ use crate::components::{CarReplayData, ComponentData};
 use crate::error::{Error, ErrorKind, Result};
 use crate::io::{Reader, Writer};
 use crate::tree::{ComponentBody, ComponentKind, GameObject};
+
+pub mod events;
+
+pub use events::{PLAYER_EVENTS, PlayerEvent, ReplayEvent};
 
 /// The car's state at one frame of a replay.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]

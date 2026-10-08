@@ -39,6 +39,54 @@ export interface Inputs {
     boost: boolean;
     grip: boolean;
 }
+
+type Vec3 = [number, number, number];
+type Vec4 = [number, number, number, number];
+
+/**
+ * A player event of a replay, at a frame (100 a second, as for the states; the spawn at the start
+ * is at -300). The fields and the meanings of their numbers are those of `PlayerEvent` in the
+ * Rust library. A `handle` identifies an object of the level, and `Unknown` holds the data of
+ * events that aren't decoded, in hex.
+ */
+export type ReplayEvent = { frame: number } & (
+    | { type: "CarRespawn"; position: Vec3; rotation: Vec4; fast_respawn: boolean }
+    | { type: "Finished"; finish_data: number; finish_type: number }
+    | { type: "Split"; plane_ls: Vec4; penetration: number; separation_speed: number }
+    | { type: "Death"; cause_of_death: number }
+    | { type: "Jump" }
+    | { type: "WingsStateChange"; open: boolean }
+    | {
+          type: "TrickComplete";
+          points: number;
+          cooldown_amount: number;
+          wall_ride_meters: number;
+          ceiling_ride_meters: number;
+          grind_meters: number;
+          wheelie_meters?: number;
+          side_wheelie_meters?: number;
+          nose_stand_secs?: number;
+      }
+    | { type: "CheckpointHit"; track_t: number; handle: number }
+    | { type: "BrokeObject"; handle: number }
+    | { type: "ModeSpecial" }
+    | { type: "Horn"; horn_percent: number; position: Vec3 }
+    | { type: "PreTeleport"; handle: number }
+    | { type: "GravityToggled"; gravity_disabled: boolean; drag: number; ang_drag: number }
+    | { type: "Cooldown"; cooldown_amount: number }
+    | { type: "WarpAnchorHit"; handle: number }
+    | { type: "DropperDroneStateChange"; handle: number; state: number }
+    | { type: "ShardClusterStateChange"; handle: number; state: number }
+    | {
+          type: "ShardClusterFireShard";
+          handle: number;
+          pos: Vec3;
+          up: Vec3;
+          fire_time: number;
+          shard_index: number;
+      }
+    | { type: "Unknown"; index: number; data: string }
+);
 "#;
 
 #[wasm_bindgen]
@@ -173,13 +221,31 @@ impl BytesFile {
     /// a replay. Throws if the replay's data is malformed.
     #[wasm_bindgen(js_name = replayStates)]
     pub fn replay_states(&self) -> Result<Option<ReplayStates>, JsError> {
-        let distance_bytes::BytesFile::GameObject(obj) = &self.0 else {
-            return Ok(None);
-        };
-        let Some((replay, version)) = obj.car_replay_data() else {
+        let Some((replay, version)) = self.replay() else {
             return Ok(None);
         };
         Ok(Some(ReplayStates(replay.states(version)?)))
+    }
+
+    /// The player events of a replay, such as respawns, jumps and checkpoints, as recorded, or
+    /// `undefined` if the file isn't a replay. Throws if the replay's data is malformed.
+    #[wasm_bindgen(js_name = replayEvents, unchecked_return_type = "ReplayEvent[] | undefined")]
+    pub fn replay_events(&self) -> Result<JsValue, JsError> {
+        let Some((replay, _)) = self.replay() else {
+            return Ok(JsValue::UNDEFINED);
+        };
+        // An event is a map of its frame and its data, which should be an object.
+        let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        Ok(replay.events()?.serialize(&serializer)?)
+    }
+}
+
+impl BytesFile {
+    fn replay(&self) -> Option<(&distance_bytes::components::CarReplayData, i32)> {
+        match &self.0 {
+            distance_bytes::BytesFile::GameObject(obj) => obj.car_replay_data(),
+            distance_bytes::BytesFile::Level(_) => None,
+        }
     }
 }
 

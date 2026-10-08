@@ -164,9 +164,12 @@ enum Command {
         input: PathBuf,
         /// The file to write; standard output if omitted.
         output: Option<PathBuf>,
+        /// Print the player events instead.
+        #[arg(long)]
+        events: bool,
     },
-    /// Compare the car states we decode from the replays under the given paths with the game's,
-    /// using the BytesTrace plugin.
+    /// Compare the car states and events we decode from the replays under the given paths with
+    /// the game's, using the BytesTrace plugin.
     ReplayCheck {
         paths: Vec<PathBuf>,
         #[arg(long, default_value = "http://localhost:18501")]
@@ -232,7 +235,11 @@ fn main() -> Result<()> {
                 .collect();
             trace::trace_check(&files, &server, max)
         }
-        Command::Replay { input, output } => replay::print(&input, output.as_deref()),
+        Command::Replay {
+            input,
+            output,
+            events,
+        } => replay::print(&input, output.as_deref(), events),
         Command::ReplayCheck {
             paths,
             server,

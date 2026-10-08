@@ -189,6 +189,23 @@ public class BytesTracePlugin : BaseUnityPlugin
                 Resource.UnloadUnusedAssets();
                 break;
             }
+            case "/replay-events":
+            {
+                // As the game loads a replay for a ghost, upgrading its events if it does, and
+                // then reads them as the ghost plays them.
+                var replay = CarReplayData.LoadFromBytes(data, -1);
+                if (replay == null)
+                {
+                    response.StatusCode = 422;
+                }
+                else
+                {
+                    Respond(response, ReplayEvents(replay.EventBuffer_ ?? new byte[0]));
+                    Destroy(replay.gameObject);
+                }
+                Resource.UnloadUnusedAssets();
+                break;
+            }
             case "/prefab-names":
                 Respond(response, string.Join("\n", PrefabNames().ToArray()) + "\n");
                 break;
@@ -321,6 +338,79 @@ public class BytesTracePlugin : BaseUnityPlugin
             sb.Append(",\"error\":\"write failed\"}\n");
         else
             sb.Append(",\"bytes\":\"").Append(Convert.ToBase64String(bytes)).Append("\"}\n");
+    }
+
+    /// <summary>
+    /// The events of a replay's event buffer as a ghost plays them, as JSON lines: the frame, the
+    /// event's index and type, the data its <c>TransceiverBroadcast</c> reads, and how many bytes
+    /// it read after the index. The data is read through <c>Upgrade</c> at the game's version,
+    /// which reads it the same way without broadcasting it.
+    /// </summary>
+    private static string ReplayEvents(byte[] buffer)
+    {
+        var events = PlayerEvents.RegisteredEvents_.CreateInstances().TransceivedEvents_;
+        var names = PlayerEvents.EventNames_;
+        var sb = new StringBuilder();
+        var stream = new BitStreamReader(buffer);
+        var reader = new EventPacketReader(stream,
+            (ref PacketSerializerGeneric<EventPacketData>.Packet p, BitStreamAbstract s) =>
+            {
+                var index = p.data_.eventIndex_;
+                var known = index >= 0 && index < events.Length;
+                var start = stream.Position_;
+                var e = known ? events[index] : null;
+                var value = e?.Upgrade(s, e.Version_);
+                sb.Append("{\"frame\":").Append(p.frame_)
+                    .Append(",\"index\":").Append(index)
+                    .Append(",\"event\":").Append(Tracer.Json(known ? names[index] : null))
+                    .Append(",\"data\":");
+                AppendValue(sb, value);
+                sb.Append(",\"read\":").Append(stream.Position_ - start).Append("}\n");
+                return true;
+            });
+        while (!reader.IsEndOfStream_)
+            reader.Read(double.MaxValue);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// A value of an event's data as JSON: floats as <c>{"f32": bits}</c>, enums as their
+    /// numbers, and structs as objects of their fields.
+    /// </summary>
+    private static void AppendValue(StringBuilder sb, object value)
+    {
+        switch (value)
+        {
+            case null:
+                sb.Append("null");
+                break;
+            case float f:
+                sb.Append("{\"f32\":").Append(Tracer.FloatBits(f)).Append('}');
+                break;
+            case bool b:
+                sb.Append(b ? "true" : "false");
+                break;
+            case Enum e:
+                sb.Append(Convert.ToInt32(e, CultureInfo.InvariantCulture));
+                break;
+            case int i:
+                sb.Append(i.ToString(CultureInfo.InvariantCulture));
+                break;
+            default:
+                sb.Append('{');
+                var first = true;
+                const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+                foreach (var field in value.GetType().GetFields(flags))
+                {
+                    if (!first)
+                        sb.Append(',');
+                    first = false;
+                    sb.Append(Tracer.Json(field.Name)).Append(':');
+                    AppendValue(sb, field.GetValue(value));
+                }
+                sb.Append('}');
+                break;
+        }
     }
 
     private static byte[] ReadBody(HttpListenerRequest request)
@@ -632,7 +722,7 @@ internal static class Tracer
         Add(pos, 0, "\"t\":\"skip\",\"end\":" + end);
     }
 
-    private static string FloatBits(float f) =>
+    internal static string FloatBits(float f) =>
         BitConverter.ToInt32(BitConverter.GetBytes(f), 0).ToString(CultureInfo.InvariantCulture);
 
     internal static string Json(string s)
