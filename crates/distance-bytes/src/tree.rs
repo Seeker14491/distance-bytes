@@ -294,8 +294,9 @@ impl Layer {
     }
 }
 
-/// Objects nest hundreds of levels deep, so the recursive operations on them (cloning, comparing,
-/// formatting and dropping, as well as reading and writing) grow the stack as needed.
+/// Objects nest hundreds of levels deep, so the recursive operations on them (cloning, comparing
+/// and formatting, as well as reading and writing) grow the stack as needed, and dropping isn't
+/// recursive.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GameObject {
@@ -347,9 +348,23 @@ impl fmt::Debug for GameObject {
 }
 
 impl Drop for GameObject {
+    /// Drops the descendants one at a time, without recursion, since dropping is also how a
+    /// JavaScript garbage collector frees an object on wasm, where the stack can't grow.
     fn drop(&mut self) {
-        let components = std::mem::take(&mut self.components);
-        grow(|| drop(components));
+        let mut objects = Vec::new();
+        take_children(self, &mut objects);
+        while let Some(mut obj) = objects.pop() {
+            take_children(&mut obj, &mut objects);
+        }
+    }
+}
+
+/// Moves the children of `obj` to the end of `out`.
+fn take_children(obj: &mut GameObject, out: &mut Vec<GameObject>) {
+    for c in &mut obj.components {
+        if let ComponentBody::Transform(t) = &mut c.body {
+            out.append(&mut t.children);
+        }
     }
 }
 
@@ -452,7 +467,10 @@ pub struct Transform {
     /// Quaternion as `[x, y, z, w]`.
     pub rotation: Option<[f32; 4]>,
     pub scale: Option<[f32; 3]>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "crate::json::children"
+    )]
     pub children: Vec<GameObject>,
 }
 

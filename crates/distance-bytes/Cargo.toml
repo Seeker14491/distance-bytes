@@ -17,6 +17,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = [
     "float_roundtrip",
     "preserve_order",
+    "raw_value",
     "unbounded_depth",
 ] }
 serde_path_to_error = "0.1"

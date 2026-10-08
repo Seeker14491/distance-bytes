@@ -589,6 +589,19 @@ fn bound_integers(value: &mut Value) {
                 map.entry("minimum").or_insert(min);
                 map.entry("maximum").or_insert(max);
             }
+            // Beyond 2^53 - 1, 64-bit integers are written as strings (see `adapter`).
+            if matches!(
+                map.get("format").and_then(Value::as_str),
+                Some("int64" | "uint64")
+            ) {
+                match map.get_mut("type") {
+                    Some(Value::Array(types)) => types.push("string".into()),
+                    Some(ty) => *ty = Value::Array(vec![ty.take(), "string".into()]),
+                    None => {}
+                }
+                let sign = if map["format"] == "int64" { "-?" } else { "" };
+                map.insert("pattern".into(), format!("^{sign}[0-9]+$").into());
+            }
             map.values_mut().for_each(bound_integers);
         }
         Value::Array(items) => items.iter_mut().for_each(bound_integers),

@@ -7,17 +7,19 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 - Reads every binary `.bytes` file the game writes into a tree of levels, layers, game objects and components, and writes it back byte-identical. Covers level versions 0–4 and non-level files (custom objects, profiles, leaderboards, replays).
 - Decodes `Transform` components (position, rotation, scale, children) and components in the game's generic field format (field names with typed values). The generic format stores absolute file offsets, which are recomputed on write, so objects can be added, removed or moved.
 - Decodes every component with its own serializer into a typed struct (`distance_bytes::components`), in every version the game reads, along with the level settings of level versions 0 and 1. Bodies that don't decode are kept as raw bytes. In the corpus, these are only bodies the game itself doesn't read.
-- Converts files to JSON and back losslessly (`distance_bytes::json`). Components are `{"type": "TeleporterEntrance", "version": 4, "guid": 12, "data": {...}}`, and values equal to the prefab's are left out. The module documentation describes the format.
+- Converts files to JSON and back losslessly (`distance_bytes::json`). Components are `{"type": "TeleporterEntrance", "version": 4, "guid": 12, "data": {...}}`, and values equal to the prefab's are left out. Integers that a JavaScript number can't hold exactly, beyond ±(2⁵³ − 1), such as a level's save time, are strings. The module documentation describes the format.
 - Generates a JSON Schema (draft 2020-12) of the JSON format, with the optional `schema` feature (`distance_bytes::json::schema`). By default the schema describes JSON for a new level, with components in the versions the game writes and only the fields those versions have, for checking JSON written by hand or by an LLM. The full schema describes everything `to_json` writes; every file in the corpus fits it.
 - Builds files: `Level::new`, `GameObject::new("CubeGS").with_position(...).with(component)`, and components in the versions the game writes. `assign_guids` gives new objects and components GUIDs above the largest in the file, and `check` reports duplicate GUIDs and references to missing targets or to types the game can't use there (which make it fail to load the level). No file in the corpus has such problems.
 - Fills in the values a file leaves to the prefabs of its objects, as the game reads them (`resolve`), and leaves out those that are the same again (`minimize`), with `PrefabDefaults`. `resolve` also reports what the game skips or merges: objects without a prefab, children and components the prefab lacks, components the prefab has only as a subclass, repeats, and materials a renderer lacks. The defaults are in `data/prefab-defaults.bytes`: every prefab of the game's level editor (1,524) with every value, as the game creates them, dumped from the game with the BytesTrace plugin.
 - Levels written by hand as JSON load in the game. The example, `examples/sprint-level.json`, is a short Sprint track: the game reads every value as written, and what it has after loading matches `resolve`, apart from values it sets from others as it reads them (described on those fields).
-- Handles objects nested any number of levels deep (one Workshop level nests them 469 deep) by growing the stack, on native targets.
+- Handles objects nested any number of levels deep (one Workshop level nests them 469 deep): natively by growing the stack, and when reading JSON by reading the children of deep objects separately. On wasm, where the stack can't grow, everything else handles about 1,100 levels in a browser.
+- Runs in browsers and Node as a wasm package (`crates/distance-bytes-wasm`), which reads and writes files and their JSON, checks, resolves and minimizes them, and gives the JSON Schema. Every file in the corpus round-trips through it, directly and through JSON.
 
 ## Layout
 
 - `crates/distance-bytes`: the library.
 - `crates/distance-bytes-cli`: the `dbytes` tool.
+- `crates/distance-bytes-wasm`: the JavaScript bindings, for browsers and Node.
 - `tools/schema-extract`: generates `schema/components.json`, the Rust `ComponentId` constants and the table of generic field types from the game's `Assembly-CSharp.dll`.
 - `tools/BytesTrace`: a BepInEx plugin that runs the game as an HTTP server and reports every value the game's own deserializer reads, so our decoder can be checked against it. It also dumps the prefab defaults.
 - `data/prefab-defaults.bytes`: the prefab defaults, the default for the `dbytes` commands that use them.
@@ -63,6 +65,40 @@ dbytes from-json level.json "My Level.bytes" --assign-guids
 - Sizes: the simple shapes (`CubeGS`, `CylinderGS` and so on) are about 64 units across at scale 1, so a 4-unit post has a scale of about 0.06. A spline road at scale 16 with its ends 8 units apart is 128 units long, and the checkpoint's trigger over it is 70 units wide.
 - A `WorldText` reads correctly from its -z side, so a sign facing a car that drives along +z needs no rotation.
 
+## JavaScript
+
+The wasm package needs the `wasm32-unknown-unknown` target and the `wasm-bindgen` command at the version of the `wasm-bindgen` crate (0.2.129):
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129
+```
+
+Build it into `crates/distance-bytes-wasm/pkg`:
+
+```bash
+cargo build -p distance-bytes-wasm --target wasm32-unknown-unknown --profile wasm
+wasm-bindgen --target web --out-dir crates/distance-bytes-wasm/pkg target/wasm32-unknown-unknown/wasm/distance_bytes_wasm.wasm
+```
+
+`pkg` then holds an ES module, `distance_bytes_wasm.js`, with its TypeScript types, and the wasm (2.3 MB, 0.6 MB gzipped). The `wasm` profile makes it less than half the size of a release build, for about a fifth more time.
+
+```js
+import init, { BytesFile, PrefabDefaults, schema } from './pkg/distance_bytes_wasm.js';
+
+await init(); // fetches distance_bytes_wasm_bg.wasm; in Node, initSync({ module: bytes })
+using file = BytesFile.read(new Uint8Array(await (await fetch('level.bytes')).arrayBuffer()));
+const level = JSON.parse(file.toJson());
+```
+
+- `BytesFile.read(bytes)` and `BytesFile.fromJson(text)` read a file; `write()` and `toJson(pretty)` write it. `kind` is `"level"` or `"game_object"`, and `name` the level's or object's name.
+- `assignGuids()`, `maxGuid()` and `check()` work as in Rust, and `resolve(defaults)` and `minimize(defaults)` take a `PrefabDefaults.read(bytes)` of `data/prefab-defaults.bytes`, which also gives `prefabNames()` and each `prefab(name)` as a file. `check()` and `resolve()` return `{message, guid}` objects.
+- `schema(full, components)` is the JSON Schema as text, as `dbytes schema` writes it.
+- Errors are thrown as `Error`s with the library's message, for JSON with the path, line and column.
+- Files live in the module's memory until `free()` is called on them or they're declared with `using`. The garbage collector frees them too, but too late when reading many files.
+- `JSON.stringify` writes `-0` as `0`, and most files have negative zeros, so a file whose JSON is changed as parsed objects comes back with zeros there, which the game doesn't tell apart. Everything else survives `JSON.parse` and `JSON.stringify`.
+- Objects can nest about 1,100 levels deep in a browser's stack (reading JSON has no limit). Running out of stack leaves the module unusable.
+
 ## Tests
 
 ```bash
@@ -75,6 +111,12 @@ The corpus test round-trips every binary `.bytes` file, directly and through JSO
 
 ```bash
 DISTANCE_BYTES_CORPUS="C:/<repo>/game_assets_dump/Assets/Resources;C:/Users/<you>/Documents/My Games/Distance" cargo test --release --all-features --test corpus
+```
+
+`crates/distance-bytes-wasm/tests/corpus.mjs` tests the built `pkg` with Node: the example level builds, and with `DISTANCE_BYTES_CORPUS` set (separated by `;`), every binary file round-trips, directly and through JSON, and its JSON has no integers that JavaScript numbers can't hold.
+
+```bash
+node crates/distance-bytes-wasm/tests/corpus.mjs
 ```
 
 ## Regenerating the schema

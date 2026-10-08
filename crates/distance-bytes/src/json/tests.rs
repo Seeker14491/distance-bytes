@@ -1,6 +1,8 @@
 use super::*;
+use crate::components::LevelSettings;
 use crate::generated::component_ids::NAMES;
 use crate::io::mark;
+use crate::visit::Visit;
 use crate::{
     BodyEnd, BytesFile, Component, ComponentBody, ComponentData, ComponentId, ComponentKind,
     DString, Field, FieldValue, GameObject, Layer, LayerFlags, LegacyLevelSettings,
@@ -155,6 +157,50 @@ fn f32_that_needs_more_digits() {
     let text = to_string(&v).unwrap();
     assert_ne!(text, "7.038531e-26");
     assert_eq!(from_str::<f32>(&text).unwrap().to_bits(), v.to_bits());
+}
+
+/// Integers that a JavaScript number can't hold exactly are written as strings, and read back
+/// from strings or numbers.
+#[test]
+fn large_integers() {
+    let version = *LevelSettings::VERSIONS.end();
+    let with_date_time = |date_time| {
+        let Some(ComponentData::LevelSettings(mut data)) =
+            ComponentData::sample(ComponentId::LEVEL_SETTINGS, version)
+        else {
+            panic!("no sample");
+        };
+        data.date_time = Some(date_time);
+        let body = ComponentBody::Data {
+            data: ComponentData::LevelSettings(data),
+            end: BodyEnd::Complete,
+        };
+        let settings = component(ComponentId::LEVEL_SETTINGS, version, 3, body);
+        level(vec![object("Settings", 2, vec![settings])])
+    };
+    for (date_time, written) in [
+        (5247589795433381000, r#""date_time": "5247589795433381000""#),
+        (i64::MIN, r#""date_time": "-9223372036854775808""#),
+        (1 << 53, r#""date_time": "9007199254740992""#),
+        ((1 << 53) - 1, r#""date_time": 9007199254740991,"#),
+        (1 - (1 << 53), r#""date_time": -9007199254740991,"#),
+    ] {
+        let text = round_trip(&with_date_time(date_time));
+        assert!(text.contains(written), "{written} not in {text}");
+    }
+
+    assert_eq!(to_string(&u64::MAX).unwrap(), r#""18446744073709551615""#);
+    assert_eq!(
+        from_str::<u64>(r#""18446744073709551615""#).unwrap(),
+        u64::MAX
+    );
+    assert_eq!(from_str::<i64>(r#""-5""#).unwrap(), -5);
+    assert_eq!(from_str::<i64>("-5").unwrap(), -5);
+    for text in [r#""+5""#, r#""5.0""#, r#"" 5""#, r#""9223372036854775808""#] {
+        assert!(from_str::<i64>(text).is_err(), "{text}");
+    }
+    // Smaller integers are always numbers.
+    assert!(from_str::<i32>(r#""5""#).is_err());
 }
 
 /// serde_json reads an `f32` by parsing an `f64` and rounding it, which for a few values rounds
@@ -446,6 +492,53 @@ fn layer_flags() {
 
 /// Objects nested far deeper than a small stack holds without growing it, through every recursive
 /// operation.
+/// Children deep down are read separately, and errors in them are reported as they would be
+/// without that.
+#[test]
+fn errors_in_deep_children() {
+    // An object nested `depth` levels deep, with an error in the one at `bad`.
+    let nested = |depth: usize, bad: usize| {
+        let mut obj = serde_json::json!({"name": "Leaf"});
+        for i in (0..depth).rev() {
+            let guid = if i == bad {
+                "x".into()
+            } else {
+                serde_json::json!(i)
+            };
+            obj = serde_json::json!({"name": "Group", "guid": guid, "components": [
+                {"type": "Transform", "data": {"position": [0, 1, 2], "children": [obj]}}
+            ]});
+        }
+        serde_json::json!({ "game_object": obj })
+    };
+    // Reads recursively, as without reading separately.
+    let recursive = |text: &str| {
+        let mut de = serde_json::Deserializer::from_str(text);
+        de.disable_recursion_limit();
+        serde_path_to_error::deserialize::<_, BytesFile>(adapter::De(&mut de)).map_err(Error::new)
+    };
+    for bad in [0, 63, 64, 65, 130, 199] {
+        let value = nested(200, bad);
+        for text in [
+            value.to_string(),
+            serde_json::to_string_pretty(&value).unwrap(),
+        ] {
+            let e = from_str::<BytesFile>(&text).unwrap_err();
+            let expected = recursive(&text).unwrap_err();
+            assert_eq!(e.path(), expected.path(), "{bad}");
+            assert_eq!(
+                (e.line(), e.column()),
+                (expected.line(), expected.column()),
+                "{bad}"
+            );
+            assert_eq!(e.to_string(), expected.to_string(), "{bad}");
+        }
+    }
+    let text = nested(200, usize::MAX).to_string();
+    let file: BytesFile = from_str(&text).unwrap();
+    assert_eq!(file, recursive(&text).unwrap());
+}
+
 #[test]
 fn deep_nesting() {
     let mut obj = object("Leaf", 0, vec![]);
@@ -603,6 +696,10 @@ mod schema_tests {
                 true,
             ),
             (r#"{"type": "TeleporterExit"}"#, true),
+            (
+                r#"{"type": "LevelSettings", "data": {"date_time": "5247589795433381000"}}"#,
+                true,
+            ),
             // Fits only the full schema: other versions, values and bodies.
             (r#"{"type": "TeleporterEntrance", "version": 3}"#, false),
             (
@@ -657,6 +754,8 @@ mod schema_tests {
             r#"{"type": "TeleporterEntrance", "data": {"teleports_to": 1.5}}"#,
             r#"{"type": "TeleporterEntrance", "data": {"teleports_to": 3000000000}}"#,
             r#"{"type": "LightFlickerLogic", "fields": {"FlickerModNumber": 3000000000}}"#,
+            r#"{"type": "LevelSettings", "data": {"date_time": "+5"}}"#,
+            r#"{"type": "LevelSettings", "data": {"date_time": "5e3"}}"#,
             r#"{"type": "LightFlickerLogic", "fields": {"OnTime": "fast"}}"#,
             r#"{"type": "LightFlickerLogic", "fields": [["OnTime", "fast"]]}"#,
             r#"{"type": "LightFlickerLogic", "fields": [["Nope", 1]]}"#,

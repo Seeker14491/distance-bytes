@@ -6,8 +6,12 @@
 //!   that differs from parsing the `f32` directly are written with more digits.
 //! - Objects can nest hundreds of levels deep, so the stack grows as needed at every nested
 //!   value.
+//! - JavaScript and other JSON parsers read numbers as `f64`, which holds integers exactly only
+//!   up to 2⁵³ − 1, so larger integers are written as strings, and read back from them where an
+//!   integer is expected.
 
 use std::fmt;
+use std::str::FromStr;
 
 use serde::de::{self, DeserializeSeed, Deserializer, Visitor};
 use serde::ser::{self, Serialize, Serializer};
@@ -74,6 +78,21 @@ fn f32_with_more_digits(v: f32) -> Option<f64> {
         .find(|&x| reads_back(x))
 }
 
+/// The largest integer that an `f64` holds exactly along with all smaller ones, 2⁵³ − 1
+/// (JavaScript's `Number.MAX_SAFE_INTEGER`). Integers of a larger magnitude are written as
+/// strings.
+pub(crate) const MAX_SAFE_INTEGER: u64 = (1 << 53) - 1;
+
+/// Parses an integer written as a string: digits with an optional `-`, without the `+` that
+/// `str::parse` also takes.
+pub(crate) fn parse_int<T: FromStr>(s: &str) -> Option<T> {
+    if s.starts_with('+') {
+        None
+    } else {
+        s.parse().ok()
+    }
+}
+
 // --- Serializer ---
 
 pub(crate) struct Ser<S>(pub S);
@@ -111,13 +130,9 @@ impl<S: Serializer> Serializer for Ser<S> {
         serialize_i8(v: i8);
         serialize_i16(v: i16);
         serialize_i32(v: i32);
-        serialize_i64(v: i64);
-        serialize_i128(v: i128);
         serialize_u8(v: u8);
         serialize_u16(v: u16);
         serialize_u32(v: u32);
-        serialize_u64(v: u64);
-        serialize_u128(v: u128);
         serialize_char(v: char);
         serialize_str(v: &str);
         serialize_bytes(v: &[u8]);
@@ -125,6 +140,28 @@ impl<S: Serializer> Serializer for Ser<S> {
         serialize_unit();
         serialize_unit_struct(name: &'static str);
         serialize_unit_variant(name: &'static str, index: u32, variant: &'static str);
+    }
+
+    fn serialize_i64(self, v: i64) -> Result<S::Ok, S::Error> {
+        self.serialize_i128(v.into())
+    }
+
+    fn serialize_u64(self, v: u64) -> Result<S::Ok, S::Error> {
+        self.serialize_u128(v.into())
+    }
+
+    fn serialize_i128(self, v: i128) -> Result<S::Ok, S::Error> {
+        match i64::try_from(v) {
+            Ok(v) if v.unsigned_abs() <= MAX_SAFE_INTEGER => self.0.serialize_i64(v),
+            _ => self.0.serialize_str(&v.to_string()),
+        }
+    }
+
+    fn serialize_u128(self, v: u128) -> Result<S::Ok, S::Error> {
+        match u64::try_from(v) {
+            Ok(v) if v <= MAX_SAFE_INTEGER => self.0.serialize_u64(v),
+            _ => self.0.serialize_str(&v.to_string()),
+        }
     }
 
     fn serialize_f32(self, v: f32) -> Result<S::Ok, S::Error> {
@@ -327,13 +364,9 @@ impl<'de, D: Deserializer<'de>> Deserializer<'de> for De<D> {
         deserialize_i8();
         deserialize_i16();
         deserialize_i32();
-        deserialize_i64();
-        deserialize_i128();
         deserialize_u8();
         deserialize_u16();
         deserialize_u32();
-        deserialize_u64();
-        deserialize_u128();
         deserialize_char();
         deserialize_str();
         deserialize_string();
@@ -351,6 +384,22 @@ impl<'de, D: Deserializer<'de>> Deserializer<'de> for De<D> {
         deserialize_enum(name: &'static str, variants: &'static [&'static str]);
         deserialize_identifier();
         deserialize_ignored_any();
+    }
+
+    fn deserialize_i64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, D::Error> {
+        self.0.deserialize_any(IntVisitor(visitor))
+    }
+
+    fn deserialize_i128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, D::Error> {
+        self.0.deserialize_any(IntVisitor(visitor))
+    }
+
+    fn deserialize_u64<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, D::Error> {
+        self.0.deserialize_any(IntVisitor(visitor))
+    }
+
+    fn deserialize_u128<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, D::Error> {
+        self.0.deserialize_any(IntVisitor(visitor))
     }
 
     fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, D::Error> {
@@ -421,6 +470,59 @@ impl<'de, V: Visitor<'de>> Visitor<'de> for FloatVisitor<V> {
 
     fn visit_map<A: de::MapAccess<'de>>(self, map: A) -> Result<V::Value, A::Error> {
         self.inner.visit_map(WrapAccess(map))
+    }
+}
+
+/// Reads an integer from a number or from the string written for a large one.
+struct IntVisitor<V>(V);
+
+impl<'de, V: Visitor<'de>> Visitor<'de> for IntVisitor<V> {
+    type Value = V::Value;
+
+    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.expecting(f)
+    }
+
+    fn visit_bool<E: de::Error>(self, v: bool) -> Result<V::Value, E> {
+        self.0.visit_bool(v)
+    }
+
+    fn visit_i64<E: de::Error>(self, v: i64) -> Result<V::Value, E> {
+        self.0.visit_i64(v)
+    }
+
+    fn visit_u64<E: de::Error>(self, v: u64) -> Result<V::Value, E> {
+        self.0.visit_u64(v)
+    }
+
+    fn visit_f64<E: de::Error>(self, v: f64) -> Result<V::Value, E> {
+        self.0.visit_f64(v)
+    }
+
+    fn visit_str<E: de::Error>(self, v: &str) -> Result<V::Value, E> {
+        if let Some(n) = parse_int(v) {
+            self.0.visit_i64(n)
+        } else if let Some(n) = parse_int(v) {
+            self.0.visit_u64(n)
+        } else if let Some(n) = parse_int(v) {
+            self.0.visit_i128(n)
+        } else if let Some(n) = parse_int(v) {
+            self.0.visit_u128(n)
+        } else {
+            self.0.visit_str(v)
+        }
+    }
+
+    fn visit_unit<E: de::Error>(self) -> Result<V::Value, E> {
+        self.0.visit_unit()
+    }
+
+    fn visit_seq<A: de::SeqAccess<'de>>(self, seq: A) -> Result<V::Value, A::Error> {
+        self.0.visit_seq(WrapAccess(seq))
+    }
+
+    fn visit_map<A: de::MapAccess<'de>>(self, map: A) -> Result<V::Value, A::Error> {
+        self.0.visit_map(WrapAccess(map))
     }
 }
 

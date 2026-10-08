@@ -5,3 +5,6 @@
 /target/
 bin/
 obj/
+
+# Built by wasm-bindgen
+/crates/distance-bytes-wasm/pkg/

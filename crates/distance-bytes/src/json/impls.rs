@@ -9,7 +9,7 @@ use serde::de::{Error as _, Visitor};
 use serde::ser::{Error as _, SerializeMap, SerializeStruct, Serializer};
 use serde::{Deserialize, Serialize};
 
-use super::adapter::{parse_f32, parse_f64};
+use super::adapter::{parse_f32, parse_f64, parse_int};
 use super::hex::{Hex, HexVisitor};
 use crate::component_id::ComponentId;
 use crate::components::ComponentData;
@@ -949,13 +949,15 @@ impl<'de> Visitor<'de> for ValueSeed {
     }
 
     fn visit_str<E: de::Error>(self, v: &str) -> Result<Value, E> {
-        let float = match self.0 {
+        let value = match self.0 {
             FieldType::String => return Ok(Value::String(v.into())),
             FieldType::Float => parse_f32(v).map(Value::Float),
             FieldType::Double => parse_f64(v).map(Value::Double),
+            // A large integer is written as a string.
+            FieldType::Long => parse_int(v).map(Value::Long),
             _ => return Err(E::invalid_type(Unexpected::Str(v), &self)),
         };
-        float.ok_or_else(|| E::invalid_value(Unexpected::Str(v), &self))
+        value.ok_or_else(|| E::invalid_value(Unexpected::Str(v), &self))
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Value, A::Error> {

@@ -9,3 +9,11 @@ publish = false
 
 [profile.test]
 opt-level = 2
+
+# The wasm package, built with `--profile wasm`: less than half the size of a release build,
+# for about a fifth more time.
+[profile.wasm]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1

@@ -382,6 +382,16 @@ pub enum Problem {
     },
 }
 
+impl Problem {
+    /// The GUID the problem is with: the repeated one, or the component with the reference.
+    pub fn guid(&self) -> u32 {
+        match self {
+            Problem::DuplicateGuid(guid) => *guid,
+            Problem::MissingTarget { from, .. } | Problem::WrongTarget { from, .. } => from.guid,
+        }
+    }
+}
+
 /// Where a reference is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Source {

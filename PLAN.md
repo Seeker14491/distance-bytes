@@ -90,7 +90,7 @@ The BytesTrace plugin dumps them (`/prefab-defaults`, `dbytes prefabs`). For eve
 | 2 | Level/Layer/GameObject/Transform/children; generic reflection components (V0 and V1) | Relocation test passes in the game |
 | 3 | Port hand-written components by frequency, all version branches | 100% coverage; traces match |
 | 4 | Builder API, IDs/references, JSON + JSON Schema, prefab-defaults dump + `resolve` | A level generated from JSON loads in the game |
-| 5 | Other binary files (LocalLeaderboards, CustomObjects, replays, LevelInfos); wasm package | — |
+| 5 | Other binary files (LocalLeaderboards, CustomObjects, replays, LevelInfos); wasm package | Every corpus file round-trips through the wasm package in Node |
 | later | XML visitor for user-data files (Settings, ControlSchemes, LevelPlaylists, Profiles) | — |
 
 ## Progress
@@ -167,9 +167,21 @@ The BytesTrace plugin dumps them (`/prefab-defaults`, `dbytes prefabs`). For eve
     - Not checked: the BytesServer conversion to XML, since it can't share a game copy with BytesTrace.
     - Played by the user in the game: the start zone, roads, checkpoint and end zone look right. The first version's shapes blocked the road, since the simple shapes' meshes are 64 units across (`GSCube` has an extent of 32), and its sign read backwards, since a `TextMesh` reads correctly from its -z side. Both are fixed in the example and noted in the README.
 
+- **Phase 5 (done)**:
+  - **Other binary files.** Phases 1 to 3 already cover them: the corpus's 155 non-level binary files (80 replays, 19 local leaderboards, 12 custom objects, 6 profile progress files, `LevelInfos`, `WorkshopLevelInfos`, and objects among the game's resources such as spline road templates) round-trip byte-identical, and every component in them decodes. Replays keep their recorded car states and events as the game's compressed buffers (hex in JSON); decoding those, for ghost playback, would be a project of its own. The 29 other `.bytes` files are XML or text (the later phase).
+  - **JSON for JavaScript.** JavaScript reads JSON numbers as `f64`, which holds integers exactly only up to 2⁵³ − 1, so larger integers are written as strings (as in `"date_time": "5247589795433381000"`), and 64-bit integers are read from either form. Times (.NET `DateTime`s, as in level save times), Steam IDs and replay GUIDs are this large. In the schemas, 64-bit integers may be strings of digits.
+  - **wasm package.** `crates/distance-bytes-wasm`, built with `wasm-bindgen --target web`: `BytesFile` (`read`, `fromJson`, `write`, `toJson`, `kind`, `name`, `assignGuids`, `maxGuid`, `check`, `resolve`, `minimize`, `clone`), `PrefabDefaults` (`read`, `prefabNames`, `prefab`) and `schema`, with TypeScript types. Problems come back as `{message, guid}`; `Problem` and `Unresolved` now have `guid()`. The `wasm` profile (`opt-level = "z"`, LTO) makes it 2.3 MB (0.56 MB gzipped), against 5.7 MB for a release build, at 46 s instead of 38 s for the official files' round trips. A panic hook logs panics to the console.
+  - **(done).** `tests/corpus.mjs` runs the built package in Node 25: all 6,681 binary files in the corpus (5.9 GB) round-trip byte-identical, directly and through JSON, and their JSON has no integers beyond 2⁵³ − 1, in 4.4 minutes.
+  - Deep nesting on wasm, where the stack can't grow: V8 gives wasm about 1 MB of native stack, and the module had 1 MB of stack in linear memory, which reading ran out of at 850 levels. With 16 MB of linear stack (`build.rs`), V8's stack is the limit, and reading JSON handled about 500 levels, so the 469-deep Workshop level failed. Now:
+    - Reading JSON keeps the `children` of objects 64 levels down as text, and reads them separately once the stack has unwound to the children of a root object (`json/deep.rs`). Errors in them get the same path, line and column as before, which a unit test checks against reading recursively. It has no depth limit, natively either.
+    - `GameObject`'s drop is iterative. On wasm, dropping is how the garbage collector frees a file, and a stack overflow in a finalizer ends a Node process.
+    - In the `wasm` build, the other operations handle 1,126 levels (resolve, minimize) to 1,297 or more (the rest) in Node, each measured in a fresh process. Running out of stack leaves the module unusable, since its stack pointer in linear memory isn't restored.
+  - Findings: `JSON.stringify` writes `-0` as `0`, and 6,245 of the 6,681 files have negative zeros, so their JSON, parsed and stringified in JavaScript, gives a different file (the game doesn't tell the zeros apart). Every other value survives. A `JSON.parse` reviver recurses and can't parse the deepest level's JSON. The garbage collector doesn't see wasm memory, so reading many files needs `free()`; without it the corpus test ran out of memory.
+
 ## Tooling notes
 
 - Decompile with `ilspycmd` 9.1.0.7988 (11.x fails to install on the .NET 9 SDK). Don't commit the decompiled source.
 - `game_assets_dump/Assets/Scripts` are stubs with fields only, no method bodies.
 - Python is not installed. Throwaway analysis scripts are in Rust or Node.
 - A running `trace-check` keeps `target/release/dbytes.exe` open, so builds fail with "Access denied" until it ends. Run long checks from a copy of the binary.
+- The wasm package needs `rustup target add wasm32-unknown-unknown` and `cargo install wasm-bindgen-cli` at the `wasm-bindgen` crate's version (pinned to 0.2.129). `wasm-opt` isn't installed.

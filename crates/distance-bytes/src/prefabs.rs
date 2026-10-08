@@ -234,6 +234,20 @@ pub enum Unresolved {
     },
 }
 
+impl Unresolved {
+    /// The GUID of the object or component.
+    pub fn guid(&self) -> u32 {
+        match self {
+            Unresolved::Prefab { guid, .. }
+            | Unresolved::Child { guid, .. }
+            | Unresolved::Component { guid, .. }
+            | Unresolved::Subclass { guid, .. }
+            | Unresolved::Repeated { guid, .. }
+            | Unresolved::Material { guid, .. } => *guid,
+        }
+    }
+}
+
 impl fmt::Display for Unresolved {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

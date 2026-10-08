@@ -11,7 +11,10 @@
 //! Use these functions rather than serde_json's directly: JSON has no NaN or infinities, which
 //! these write as the strings `"NaN"`, `"Infinity"` and `"-Infinity"` (a NaN other than the
 //! canonical one is written with its bits, like `"NaN:0xffc00000"`), and objects can nest
-//! deeper than serde_json allows by default.
+//! deeper than serde_json allows by default. Integers too large for a JavaScript number to hold
+//! exactly, beyond ±(2⁵³ − 1), are written as strings of digits, like a level's `date_time`
+//! `"5247589795433381000"`, so that the JSON can be read in a browser without losing them; 64-bit
+//! integers are read from either form.
 //!
 //! # Shape
 //!
@@ -40,6 +43,7 @@
 //! one.
 
 mod adapter;
+mod deep;
 mod format;
 mod impls;
 #[cfg(feature = "schema")]
@@ -50,10 +54,15 @@ use std::io;
 
 use serde::{Deserialize, Serialize};
 
+pub(crate) use deep::children;
+
 /// An error converting to or from JSON, with where it happened.
 #[derive(Debug)]
 pub struct Error {
     path: String,
+    /// The line and column, when they aren't the inner error's: for an error in a part of the
+    /// document read on its own.
+    position: Option<(usize, usize)>,
     inner: serde_json::Error,
 }
 
@@ -62,7 +71,38 @@ impl Error {
         let path = e.path().to_string();
         Error {
             path,
+            position: None,
             inner: e.into_inner(),
+        }
+    }
+
+    /// The error of the part of `text` that starts at `offset`, which was read on its own.
+    fn within(self, text: &[u8], offset: usize) -> Self {
+        let offset = offset.min(text.len());
+        let prefix = deep::path_at(text, offset);
+        let path = match self.path.as_str() {
+            "" | "." => prefix,
+            path if path.starts_with('[') => prefix + path,
+            path => format!("{prefix}.{path}"),
+        };
+        let position = (self.line() != 0).then(|| {
+            let start_of_line = text[..offset]
+                .iter()
+                .rposition(|&b| b == b'\n')
+                .map_or(0, |i| i + 1);
+            let line = 1 + text[..start_of_line]
+                .iter()
+                .filter(|&&b| b == b'\n')
+                .count();
+            match self.line() {
+                1 => (line, offset - start_of_line + self.column()),
+                n => (line + n - 1, self.column()),
+            }
+        });
+        Error {
+            path,
+            position,
+            inner: self.inner,
         }
     }
 
@@ -73,22 +113,33 @@ impl Error {
 
     /// The line of the error when reading, starting at 1, or 0 when writing.
     pub fn line(&self) -> usize {
-        self.inner.line()
+        self.position.map_or(self.inner.line(), |(line, _)| line)
     }
 
     /// The column of the error when reading, starting at 1, or 0 when writing.
     pub fn column(&self) -> usize {
-        self.inner.column()
+        self.position
+            .map_or(self.inner.column(), |(_, column)| column)
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.path.is_empty() || self.path == "." {
-            write!(f, "{}", self.inner)
-        } else {
-            write!(f, "at {}: {}", self.path, self.inner)
+        if !self.path.is_empty() && self.path != "." {
+            write!(f, "at {}: ", self.path)?;
         }
+        let Some((line, column)) = self.position else {
+            return write!(f, "{}", self.inner);
+        };
+        // The inner error's message ends with its own position.
+        let message = self.inner.to_string();
+        let suffix = format!(
+            " at line {} column {}",
+            self.inner.line(),
+            self.inner.column()
+        );
+        let message = message.strip_suffix(&suffix).unwrap_or(&message);
+        write!(f, "{message} at line {line} column {column}")
     }
 }
 
@@ -130,24 +181,29 @@ pub fn to_string_pretty<T: Serialize + ?Sized>(value: &T) -> Result<String, Erro
 }
 
 pub fn from_str<'a, T: Deserialize<'a>>(s: &'a str) -> Result<T, Error> {
-    from_json(serde_json::Deserializer::from_str(s))
+    from_json(serde_json::Deserializer::from_str(s), s.as_bytes())
 }
 
 pub fn from_slice<'a, T: Deserialize<'a>>(v: &'a [u8]) -> Result<T, Error> {
-    from_json(serde_json::Deserializer::from_slice(v))
+    from_json(serde_json::Deserializer::from_slice(v), v)
 }
 
+/// Reads `text` with `de`, which reads from it.
 fn from_json<'de, R: serde_json::de::Read<'de>, T: Deserialize<'de>>(
     mut de: serde_json::Deserializer<R>,
+    text: &[u8],
 ) -> Result<T, Error> {
-    // The adapter grows the stack instead.
+    // The adapter grows the stack instead, and deep children are read separately.
     de.disable_recursion_limit();
-    let value = serde_path_to_error::deserialize(adapter::De(&mut de)).map_err(Error::new)?;
-    de.end().map_err(|e| Error {
-        path: String::new(),
-        inner: e,
-    })?;
-    Ok(value)
+    deep::reading(text, || {
+        let value = serde_path_to_error::deserialize(adapter::De(&mut de)).map_err(Error::new)?;
+        de.end().map_err(|e| Error {
+            path: String::new(),
+            position: None,
+            inner: e,
+        })?;
+        Ok(value)
+    })
 }
 
 #[cfg(feature = "schema")]
