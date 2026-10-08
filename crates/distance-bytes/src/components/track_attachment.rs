@@ -8,9 +8,11 @@ use crate::visit::{Visit, Visitor};
 /// `TrackAttachment`: This object is attached to a track, and will move along with it.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct TrackAttachment {
     /// A reference to an object.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub attached_to: u32,
     pub copy_rotation: Option<bool>,
     pub copy_scale: Option<bool>,

@@ -13,12 +13,14 @@ use crate::visit::{Visit, Visitor};
 /// empty list keeps the prefab's materials.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct MeshRenderer {
     /// Version 0 only, ignored by the game.
     pub cast_shadows: Option<bool>,
     /// Version 0 only, ignored by the game.
     pub receive_shadows: Option<bool>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub materials: Vec<MaterialColors>,
     /// Version 0 only, ignored by the game.
     pub lightmap_index: Option<i32>,
@@ -31,16 +33,19 @@ pub struct MeshRenderer {
 /// The colors of one material of a renderer.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct MaterialColors {
     /// The material's name.
     pub material: Option<DString>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub colors: Vec<MaterialColor>,
 }
 
 /// A color property of a material, such as `_Color` or `_EmitColor`.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct MaterialColor {
     pub name: Option<DString>,

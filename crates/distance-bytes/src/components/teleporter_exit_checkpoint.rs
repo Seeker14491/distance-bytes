@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// can also trigger a checkpoint here.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct TeleporterExitCheckpoint {
     pub trigger_checkpoint: Option<bool>,

@@ -240,6 +240,7 @@ pub(crate) trait Visitor: Sized {
 /// How a component body ends compared to the values its version's serializer reads. Files
 /// written by older game builds can have fewer or more values under the same version.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum BodyEnd {
     /// The body ends after the last value.
@@ -249,7 +250,11 @@ pub enum BodyEnd {
     /// does for empty ones, so they're read as `None` (and references as 0).
     Truncated(u32),
     /// Bytes after the last value, which the game skips.
-    Trailing(#[serde(with = "crate::json::hex")] Vec<u8>),
+    Trailing(
+        #[serde(with = "crate::json::hex")]
+        #[cfg_attr(feature = "schema", schemars(with = "crate::json::hex::Hex<'static>"))]
+        Vec<u8>,
+    ),
 }
 
 pub(crate) struct ReadVisitor<'r, 'a> {
@@ -484,8 +489,9 @@ impl FillVisitor {
 }
 
 impl Visitor for FillVisitor {
+    /// As if the body had every value, for the values a body has only when it's long enough.
     fn remaining(&self) -> Option<usize> {
-        None
+        Some(usize::MAX)
     }
 
     fn value<T: Pod>(&mut self, _name: &'static str, v: &mut Option<T>) -> Result<()> {

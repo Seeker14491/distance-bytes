@@ -9,11 +9,13 @@ use crate::visit::{Visit, Visitor};
 /// `LocalLeaderboard`: the results of a level's runs on this computer.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LocalLeaderboard {
     /// The version of the results' format. The game reads them as [`ResultInfo::VERSION`] when
     /// this is missing.
     pub results_version: Option<i32>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub results: Vec<ResultInfo>,
     /// Version 1 and later.
     pub creator_version: Option<i32>,
@@ -22,6 +24,7 @@ pub struct LocalLeaderboard {
 /// `ResultInfo`: a result in a [`LocalLeaderboard`].
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct ResultInfo {
     /// Version 2 and later.

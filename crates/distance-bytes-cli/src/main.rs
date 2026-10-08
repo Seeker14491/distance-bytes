@@ -44,6 +44,21 @@ enum Command {
     },
     /// Convert JSON written by `to-json` (or by hand) to a .bytes file.
     FromJson { input: PathBuf, output: PathBuf },
+    /// Write the JSON Schema of the JSON format. By default it describes JSON for a new level,
+    /// with components in the versions the game writes.
+    Schema {
+        /// The file to write; standard output if omitted.
+        output: Option<PathBuf>,
+        /// Describe all JSON that `to-json` writes, for any file.
+        #[arg(long)]
+        full: bool,
+        /// Only these component types (and Transform and LevelSettings), separated by commas.
+        #[arg(long, value_delimiter = ',')]
+        components: Option<Vec<String>>,
+        /// Write the schema on one line.
+        #[arg(long)]
+        compact: bool,
+    },
     /// Print statistics about the binary .bytes files under the given paths.
     Stats { paths: Vec<PathBuf> },
     /// Print every value our decoder reads from a file, as JSON lines.
@@ -97,6 +112,12 @@ fn main() -> Result<()> {
             compact,
         } => to_json(&input, output.as_deref(), compact),
         Command::FromJson { input, output } => from_json(&input, &output),
+        Command::Schema {
+            output,
+            full,
+            components,
+            compact,
+        } => schema(output.as_deref(), full, components, compact),
         Command::Stats { paths } => stats(&paths),
         Command::Trace { file } => trace::print_trace(&file),
         Command::Relocate { input, output, pad } => relocate(&input, &output, pad),
@@ -267,6 +288,38 @@ fn from_json(input: &Path, output: &Path) -> Result<()> {
     let text = std::fs::read(input)?;
     let file: BytesFile = json::from_slice(&text).with_context(|| input.display().to_string())?;
     std::fs::write(output, file.write())?;
+    Ok(())
+}
+
+fn schema(
+    output: Option<&Path>,
+    full: bool,
+    components: Option<Vec<String>>,
+    compact: bool,
+) -> Result<()> {
+    let components = components
+        .map(|names| {
+            names
+                .iter()
+                .map(|n| {
+                    ComponentId::from_name(n.trim())
+                        .with_context(|| format!("unknown component type {n:?}"))
+                })
+                .collect::<Result<Vec<_>>>()
+        })
+        .transpose()?;
+    let options = json::SchemaOptions { full, components };
+    let schema = json::schema(&options);
+    let mut text = if compact {
+        serde_json::to_string(&schema)?
+    } else {
+        serde_json::to_string_pretty(&schema)?
+    };
+    text.push('\n');
+    match output {
+        Some(path) => std::fs::write(path, text)?,
+        None => print!("{text}"),
+    }
     Ok(())
 }
 

@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// `CutsceneManagerLogic`.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct CutsceneManagerLogic {
     pub time_to_switch_to_next_level: Option<f32>,

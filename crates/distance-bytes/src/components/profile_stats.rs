@@ -9,30 +9,37 @@ use crate::visit::{Visit, Visitor};
 /// `ProfileStats`: a profile's statistics, kept with its progress.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct ProfileStats {
     /// The version of `player_stats`' format. The game reads them as [`PlayerStats::VERSION`]
     /// when this is missing.
     pub player_stats_version: Option<i32>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub player_stats: PlayerStats,
     pub total_play_time: Option<f64>,
     pub level_editor_work_time: Option<f64>,
     pub level_editor_play_time: Option<f64>,
     /// Indexed by `GameModeID`.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub solo_mode_play_times: Vec<Option<f64>>,
     /// Indexed by `GameModeID`.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub splitscreen_mode_play_times: Vec<Option<f64>>,
     /// Indexed by `GameModeID`.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub online_mode_play_times: Vec<Option<f64>>,
     /// Version 1 and later.
     pub adventure_start_time: Option<f64>,
     /// Version 1 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub trackmogrify_modifiers: Vec<Option<DString>>,
 }
 
 /// `PlayerStats`: totals of a player's actions, in [`ProfileStats`].
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct PlayerStats {
     pub total_deaths_count: Option<i64>,

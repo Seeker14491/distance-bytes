@@ -273,6 +273,18 @@ macro_rules! component_data {
                 }
             }
 
+            /// The schema of the typed body of a component type, if it has one.
+            #[cfg(feature = "schema")]
+            pub(crate) fn data_schema(
+                id: ComponentId,
+                generator: &mut schemars::SchemaGenerator,
+            ) -> Option<schemars::Schema> {
+                match id {
+                    $(ComponentId::$id => Some(generator.subschema_for::<$ty>()),)*
+                    _ => None,
+                }
+            }
+
             /// Writes the body for the given component version, which should be one of the
             /// versions the type decodes.
             #[inline(never)]

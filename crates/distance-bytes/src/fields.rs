@@ -116,12 +116,16 @@ pub(crate) type FieldInfo = (&'static str, &'static str, Option<FieldType>);
 
 /// The type of a component's field in the generic format, if the game has a field of that name.
 pub fn field_type(id: ComponentId, name: &str) -> Option<FieldType> {
-    let i = FIELDS.binary_search_by_key(&id.0, |&(id, _)| id).ok()?;
-    FIELDS[i]
-        .1
+    fields_of(id)?
         .iter()
         .find(|&&(n, _, _)| n == name)
         .and_then(|&(_, _, ty)| ty)
+}
+
+/// The fields of a component type in the generic format, if it is a `SerialComponent`.
+pub(crate) fn fields_of(id: ComponentId) -> Option<&'static [FieldInfo]> {
+    let i = FIELDS.binary_search_by_key(&id.0, |&(id, _)| id).ok()?;
+    Some(FIELDS[i].1)
 }
 
 /// Reads a whole component body in the generic format.

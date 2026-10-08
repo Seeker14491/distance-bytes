@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// `CustomName`: Give this object a Custom name in the Editor and Level Objects list.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct CustomName {
     pub custom_name: Option<DString>,

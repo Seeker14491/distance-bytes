@@ -8,6 +8,7 @@ use crate::visit::{Visit, Visitor};
 /// `LevelImageCamera`: Creates level preview image from this position.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LevelImageCamera {
     /// Version 1 and later.

@@ -1,6 +1,7 @@
 //! Round-trips every binary `.bytes` file under the directories listed in the
 //! `DISTANCE_BYTES_CORPUS` environment variable (separated like `PATH`), directly and through
-//! JSON. Skipped if unset.
+//! JSON, and with the `schema` feature validates the JSON against the full schema. Skipped if
+//! unset.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -36,10 +37,42 @@ fn check(data: &[u8]) -> Option<String> {
         Err(e) => return Some(format!("to JSON: {e}")),
     };
     match json::from_str::<BytesFile>(&text) {
-        Err(e) => Some(format!("from JSON: {e}")),
-        Ok(back) if back.write() != data => Some("output through JSON differs".into()),
-        Ok(_) => None,
+        Err(e) => return Some(format!("from JSON: {e}")),
+        Ok(back) if back.write() != data => return Some("output through JSON differs".into()),
+        Ok(_) => {}
     }
+    #[cfg(feature = "schema")]
+    if let Some(problem) = schema_errors(&text) {
+        return Some(problem);
+    }
+    None
+}
+
+/// Where JSON doesn't fit the full schema, if it doesn't.
+#[cfg(feature = "schema")]
+fn schema_errors(text: &str) -> Option<String> {
+    static FULL: std::sync::LazyLock<jsonschema::Validator> = std::sync::LazyLock::new(|| {
+        let options = json::SchemaOptions {
+            full: true,
+            components: None,
+        };
+        jsonschema::validator_for(&json::schema(&options)).unwrap()
+    });
+    let mut de = serde_json::Deserializer::from_str(text);
+    de.disable_recursion_limit();
+    let value: serde_json::Value = serde::Deserialize::deserialize(&mut de).unwrap();
+    if FULL.is_valid(&value) {
+        return None;
+    }
+    let errors: Vec<_> = FULL
+        .iter_errors(&value)
+        .take(3)
+        .map(|e| format!("{} (schema {})", e.instance_path(), e.schema_path()))
+        .collect();
+    Some(format!(
+        "JSON doesn't fit the schema at {}",
+        errors.join(", ")
+    ))
 }
 
 #[test]
@@ -59,22 +92,27 @@ fn corpus_round_trip() {
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
     std::thread::scope(|s| {
         for _ in 0..threads {
-            s.spawn(|| {
-                while let Some(path) = files.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    let data = std::fs::read(path).unwrap();
-                    let head = data
-                        .get(..4)
-                        .map(|b| i32::from_le_bytes(b.try_into().unwrap()));
-                    if !matches!(head, Some(mark::LEVEL | mark::GAME_OBJECT)) {
-                        continue; // XML or other non-binary files
+            // Parsing and validating JSON recurses without growing the stack, and a level nests
+            // 469 deep.
+            let thread = std::thread::Builder::new().stack_size(64 << 20);
+            thread
+                .spawn_scoped(s, || {
+                    while let Some(path) = files.get(next.fetch_add(1, Ordering::Relaxed)) {
+                        let data = std::fs::read(path).unwrap();
+                        let head = data
+                            .get(..4)
+                            .map(|b| i32::from_le_bytes(b.try_into().unwrap()));
+                        if !matches!(head, Some(mark::LEVEL | mark::GAME_OBJECT)) {
+                            continue; // XML or other non-binary files
+                        }
+                        checked.fetch_add(1, Ordering::Relaxed);
+                        if let Some(problem) = check(&data) {
+                            let failure = format!("{}: {problem}", path.display());
+                            failures.lock().unwrap().push(failure);
+                        }
                     }
-                    checked.fetch_add(1, Ordering::Relaxed);
-                    if let Some(problem) = check(&data) {
-                        let failure = format!("{}: {problem}", path.display());
-                        failures.lock().unwrap().push(failure);
-                    }
-                }
-            });
+                })
+                .unwrap();
         }
     });
 
@@ -91,5 +129,10 @@ fn corpus_round_trip() {
         failures.len(),
         failures.join("\n")
     );
-    eprintln!("{checked} files round-tripped, directly and through JSON");
+    let validated = if cfg!(feature = "schema") {
+        ", and validated against the schema"
+    } else {
+        ""
+    };
+    eprintln!("{checked} files round-tripped, directly and through JSON{validated}");
 }

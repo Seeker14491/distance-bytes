@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// `AmbientColors`: the ambient light colors, each `[r, g, b, a]`.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct AmbientColors {
     pub sky: Option<[f32; 4]>,
@@ -27,6 +28,7 @@ impl AmbientColors {
 /// `LevelSettings.DirectionLight`: the directional light.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct DirectionLight {
     /// `[r, g, b, a]`.
@@ -54,6 +56,7 @@ impl DirectionLight {
 /// have the old skybox, later ones the new one and a background layer.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct Skybox {
     /// `LevelSettings.Skybox.Old.Type`. Old skybox only.
@@ -158,6 +161,7 @@ impl Skybox {
 /// `LevelSettings.Fog`.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct Fog {
     /// `[r, g, b, a]`.
@@ -191,6 +195,7 @@ impl Fog {
 /// `Biodome`: a zone with its own ambient light, directional light, sky and fog.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct Biodome {
     /// Version 0 only.
@@ -199,17 +204,21 @@ pub struct Biodome {
     pub r#type: Option<i32>,
     pub fade_distance: Option<f32>,
     pub enable_ambient_light: Option<bool>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub ambient_colors: AmbientColors,
     pub has_directional_light: Option<bool>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub direction_light: DirectionLight,
     pub enable_skybox: Option<bool>,
     /// Version 4 only, ignored by the game.
     pub background_layer: Option<DString>,
     /// The old skybox before version 20, without `sky_far` before version 3.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub skybox: Skybox,
     pub enable_fog: Option<bool>,
     /// Version 2 and later.
     pub fog_height_is_relative: Option<bool>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub fog: Fog,
 }
 

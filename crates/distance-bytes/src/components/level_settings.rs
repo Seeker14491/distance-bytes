@@ -10,6 +10,7 @@ use crate::visit::{Visit, Visitor};
 /// `LevelSettings`: a level's name, modes, environment, medal times and editor state.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LevelSettings {
     /// When the level was saved, as .NET's `DateTime.ToBinary`.
@@ -21,6 +22,7 @@ pub struct LevelSettings {
     pub level_creator_name: Option<DString>,
     /// The game modes the level supports, as `GameModeID` and whether it's enabled, in file
     /// order.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub modes: Vec<(Option<i32>, Option<bool>)>,
     /// Version 27 and later.
     pub music_track: Option<DString>,
@@ -31,10 +33,12 @@ pub struct LevelSettings {
     /// `[r, g, b, a]`, for all three ambient colors. Version 3 and earlier.
     pub ambient_light_color: Option<[f32; 4]>,
     /// Version 4 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub ambient_colors: AmbientColors,
     /// Version 5 and later.
     pub enable_directional_light: Option<bool>,
     /// Version 5 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub direction_light: DirectionLight,
     /// Version 5 and later.
     pub enable_shadows: Option<bool>,
@@ -42,9 +46,11 @@ pub struct LevelSettings {
     pub enable_sun_shafts: Option<bool>,
     /// Only the color in version 3 and earlier; the old skybox before version 20, without
     /// `sky_far` before version 7.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub skybox: Skybox,
     pub fog_enabled: Option<bool>,
     /// Only the color, near and far in version 3 and earlier.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub fog: Fog,
     pub diamond_time: Option<f32>,
     pub diamond_points: Option<i32>,
@@ -67,12 +73,14 @@ pub struct LevelSettings {
     /// Version 8 and later.
     pub creator_version: Option<i32>,
     /// Version 6 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub editor: LevelEditorPrivateSettings,
 }
 
 /// `LevelSettings.LevelEditorPrivateSettings`: the level editor's cursor and camera.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LevelEditorPrivateSettings {
     pub cursor_position: Option<[f32; 3]>,

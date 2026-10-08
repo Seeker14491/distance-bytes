@@ -8,6 +8,7 @@ use crate::visit::{Visit, Visitor};
 /// `RollingBarrelDropperLogic`: Drops Rollers when triggered. Add an EventListener to use this.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct RollingBarrelDropperLogic {
     pub drop_rate_per_minute: Option<i32>,

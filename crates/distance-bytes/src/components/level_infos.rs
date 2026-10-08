@@ -9,17 +9,20 @@ use crate::visit::{Visit, Visitor};
 /// `LevelInfos`: the game's cache of level metadata (`Settings/LevelInfos.bytes`).
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LevelInfos {
     /// The version of the infos' format. The game reads them as [`LevelInfo::VERSION`] when this
     /// is missing, and discards them when it isn't the current version.
     pub level_info_version: Option<i32>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub level_infos: Vec<LevelInfo>,
 }
 
 /// `LevelInfo`: a level's metadata in [`LevelInfos`].
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LevelInfo {
     pub level_name: Option<DString>,
@@ -31,6 +34,7 @@ pub struct LevelInfo {
     pub file_last_write_date_time: Option<i64>,
     /// The game modes the level supports, as `GameModeID` and whether it's enabled, in file
     /// order.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub modes: Vec<(Option<i32>, Option<bool>)>,
     pub bronze_time: Option<f32>,
     pub bronze_points: Option<i32>,

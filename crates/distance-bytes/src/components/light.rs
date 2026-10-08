@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// `Light` (the game's `LightWrapper`): adds light to the scene.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct Light {
     /// Unity's `LightType`: 0 spot, 1 directional, 2 point. Versions 0 and 1; later versions keep
@@ -34,6 +35,7 @@ pub struct Light {
     /// Whether the body has `spot_angle`. Versions 0 and 1 always have it; later versions only
     /// when the light is a spot light, which depends on the prefab, so it's read from the length
     /// of the body.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub has_spot_angle: bool,
     /// Version 0 only, ignored by the game.
     pub cookie_name: Option<DString>,

@@ -10,7 +10,7 @@ name = "dbytes"
 path = "src/main.rs"
 
 [dependencies]
-distance-bytes = { path = "../distance-bytes" }
+distance-bytes = { path = "../distance-bytes", features = ["schema"] }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 rayon = "1"

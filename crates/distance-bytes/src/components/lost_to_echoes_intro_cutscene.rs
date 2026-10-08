@@ -8,6 +8,7 @@ use crate::visit::{Visit, Visitor};
 /// `LostToEchoesIntroCutscene`.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LostToEchoesIntroCutscene {
     pub delay_before_fade_in: Option<f32>,

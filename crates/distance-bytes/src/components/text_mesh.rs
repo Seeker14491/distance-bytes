@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// `TextMesh` (the game's `TextMeshWrapper`): settings for the 3D text.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct TextMesh {
     pub text: Option<DString>,

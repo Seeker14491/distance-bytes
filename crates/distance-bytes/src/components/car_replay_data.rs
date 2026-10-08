@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// `CarReplayData`: a recorded run of a car, as saved for local leaderboards and ghosts.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct CarReplayData {
     /// The player's name. From version 2 the game truncates it to 64 characters when writing.
@@ -21,23 +22,30 @@ pub struct CarReplayData {
     pub finish_value: Option<i32>,
     /// `replayLengthMS_`, -1 when unknown. Version 3 and later.
     pub replay_length_ms: Option<i32>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub car: CarData,
     /// The game's version of each type of player event, as of the recording.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub player_event_versions: Vec<Option<i32>>,
     #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "schema", schemars(with = "crate::json::hex::Hex<'static>"))]
     pub event_buffer: Vec<u8>,
     /// The car's states, uncompressed. Version 4 and earlier.
     #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "schema", schemars(with = "crate::json::hex::Hex<'static>"))]
     pub state_buffer: Vec<u8>,
     /// The car's states, compressed in two parts. Version 5 and later; version 5 uses a different
     /// encoding than later versions.
     #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "schema", schemars(with = "crate::json::hex::Hex<'static>"))]
     pub transform_buffer: Vec<u8>,
     /// Version 5 and later.
     #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "schema", schemars(with = "crate::json::hex::Hex<'static>"))]
     pub directive_buffer: Vec<u8>,
     /// Versions 1 to 4, ignored by the game.
     #[serde(with = "crate::json::hex", skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "schema", schemars(with = "crate::json::hex::Hex<'static>"))]
     pub eye_state_buffer: Vec<u8>,
     /// Whether the states were cut short when compressed. Version 7 and later.
     pub data_was_truncated: Option<bool>,
@@ -46,18 +54,21 @@ pub struct CarReplayData {
 /// `CarReplayData.CarData`: the car's look.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct CarData {
     /// Always 0.
     pub version: Option<i32>,
     /// The car's name, which the game truncates to 32 characters when writing.
     pub name: Option<DString>,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub colors: CarColors,
 }
 
 /// `CarColors`, each `[r, g, b, a]`.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct CarColors {
     pub primary: Option<[f32; 4]>,

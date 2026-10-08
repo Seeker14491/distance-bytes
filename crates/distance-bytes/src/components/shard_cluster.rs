@@ -8,6 +8,7 @@ use crate::visit::{Visit, Visitor};
 /// `ShardCluster`: Drops a collection of sharp objects in front of the car.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct ShardCluster {
     pub trigger_distance: Option<f32>,

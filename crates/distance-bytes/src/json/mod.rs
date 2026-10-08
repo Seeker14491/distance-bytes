@@ -17,7 +17,8 @@
 //!
 //! - A file is `{"level": {...}}` or, for non-level files, `{"game_object": {...}}`.
 //! - Struct fields use their Rust names. A `None` value is the empty marker, "the same as the
-//!   prefab's", and is left out; `null` reads the same.
+//!   prefab's", and is left out; `null` reads the same. The few fields that aren't optional
+//!   (lists, references and flags) are left out when empty, 0 or false.
 //! - A component is `{"type": "TeleporterEntrance", "version": 4, "guid": 12, ...}` with at
 //!   most one body:
 //!   - `"data"`: a typed body ([`ComponentData`](crate::ComponentData) or, for a `Transform`,
@@ -40,6 +41,8 @@
 mod adapter;
 mod format;
 mod impls;
+#[cfg(feature = "schema")]
+mod schema;
 
 use std::fmt;
 use std::io;
@@ -146,6 +149,15 @@ fn from_json<'de, R: serde_json::de::Read<'de>, T: Deserialize<'de>>(
     Ok(value)
 }
 
+#[cfg(feature = "schema")]
+pub use schema::{SchemaOptions, schema};
+
+/// For `#[serde(skip_serializing_if = "crate::json::is_default")]` on fields that aren't
+/// optional, which read as their default when left out.
+pub(crate) fn is_default<T: Default + PartialEq>(v: &T) -> bool {
+    *v == T::default()
+}
+
 /// Byte arrays as lowercase hex strings, for `#[serde(with = "crate::json::hex")]`.
 pub(crate) mod hex {
     use std::fmt;
@@ -179,6 +191,21 @@ pub(crate) mod hex {
 
     /// Bytes serialized as hex.
     pub(crate) struct Hex<'a>(pub &'a [u8]);
+
+    #[cfg(feature = "schema")]
+    impl schemars::JsonSchema for Hex<'_> {
+        fn schema_name() -> std::borrow::Cow<'static, str> {
+            "Hex".into()
+        }
+
+        fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+            schemars::json_schema!({
+                "type": "string",
+                "pattern": "^([0-9a-fA-F]{2})*$",
+                "description": "Bytes as hexadecimal digits."
+            })
+        }
+    }
 
     impl Serialize for Hex<'_> {
         fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {

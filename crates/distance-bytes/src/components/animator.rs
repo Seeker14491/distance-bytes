@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// `AnimatorBase.VisitCurveOld`), shared by `Animated` and `GoldenAnimator`.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct AnimatorCurve {
     pub delay: Option<f32>,
@@ -66,6 +67,7 @@ impl AnimatorCurve {
 /// `AnimatorBase.TriggerAction`s.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct AnimatorTrigger {
     pub default_action: Option<i32>,
@@ -98,6 +100,7 @@ impl AnimatorTrigger {
 /// `Animated`: animates the object's transform.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct Animated {
     /// `Animated.MotionType`.
@@ -133,12 +136,14 @@ pub struct Animated {
     /// Version 4 and later.
     pub projectile_gravity: Option<[f32; 3]>,
     /// In the new format from version 8.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub curve: AnimatorCurve,
     /// Version 7 and later.
     pub animate_physics: Option<bool>,
     /// Version 7 and later.
     pub always_animate: Option<bool>,
     /// Version 3 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub trigger: AnimatorTrigger,
 }
 
@@ -200,6 +205,7 @@ impl Visit for Animated {
 /// `GoldenAnimator`: animates the scale and position of the object.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct GoldenAnimator {
     pub scale: Option<bool>,
@@ -207,7 +213,9 @@ pub struct GoldenAnimator {
     pub translate: Option<bool>,
     pub translate_vector: Option<[f32; 3]>,
     /// In the new format from version 1.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub curve: AnimatorCurve,
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub trigger: AnimatorTrigger,
 }
 

@@ -8,9 +8,11 @@ use crate::visit::{Visit, Visitor};
 /// `TrackSegment`: This object can connect to other Track segments.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct TrackSegment {
     /// References to the linked objects. Version 0 only.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub links: Vec<u32>,
     /// Version 1 and earlier.
     pub update_all_links: Option<bool>,

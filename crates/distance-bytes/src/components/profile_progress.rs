@@ -9,14 +9,17 @@ use crate::visit::{Visit, Visitor};
 /// `ProfileProgress`: a profile's progress through levels and the campaign.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct ProfileProgress {
     /// The version of the levels' progress format. The game reads them as
     /// [`LevelProgress::VERSION`] when this is missing.
     pub level_progress_version: Option<i32>,
     /// The progress in each level, by the level's relative path, in file order.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub level_progress: Vec<(Option<DString>, LevelProgress)>,
     /// Version 1 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub unlocked_levels: Vec<Option<DString>>,
     /// A 32-bit integer before version 2, which keeps only the low 32 bits when writing.
     pub total_medal_count: Option<i64>,
@@ -28,8 +31,10 @@ pub struct ProfileProgress {
     /// Version 2 and later.
     pub total_levels_finished_count: Option<i64>,
     /// Version 3 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub completed_tricks: Vec<Option<DString>>,
     /// Version 4 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub unlocked_adventure_levels: Vec<Option<DString>>,
     /// Version 4 and later.
     pub finished_lost_to_echoes_count: Option<i64>,
@@ -38,6 +43,7 @@ pub struct ProfileProgress {
     /// Version 5 and later.
     pub unlocked_lost_to_echoes: Option<bool>,
     /// The relative paths of levels not yet seen in the level select. Version 6 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub unseen_levels: Vec<Option<DString>>,
     /// Version 6 and later, ignored by the game.
     pub show_campaign_plus_dot: Option<bool>,
@@ -56,14 +62,17 @@ pub struct ProfileProgress {
 /// `ProfileProgress.LevelProgress`: a profile's progress in a level.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LevelProgress {
     /// The level's version (its `DateTime.ToBinary`) when last played, as a decimal string.
     pub last_played_level_version: Option<DString>,
     pub prompted_to_vote_on_level: Option<bool>,
     /// The `MedalStatus` in each game mode, indexed by `GameModeID`.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub medals: Vec<Option<i32>>,
     /// The best time or score in each game mode, indexed by `GameModeID`, -1 for none.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub top_results: Vec<Option<i32>>,
     /// As .NET's `DateTime.ToBinary`. Version 1 and later.
     pub time_last_played: Option<i64>,

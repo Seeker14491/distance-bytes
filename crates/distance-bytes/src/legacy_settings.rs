@@ -13,6 +13,7 @@ use crate::visit::{Visit, Visitor};
 /// `LevelSettings.OldVisit`. Colors are `[r, g, b, a]`.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LegacyLevelSettings {
     /// Ignored by the game.
@@ -38,9 +39,11 @@ pub struct LegacyLevelSettings {
     pub car_spawn_rotation: Option<[f32; 4]>,
     /// The game modes the level supports, by name, and whether each is enabled, in file order.
     /// Versions 1 to 3.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub mode_names: Vec<(Option<DString>, Option<bool>)>,
     /// The game modes the level supports, as `GameModeID` and whether it's enabled, in file
     /// order. Version 4 and later.
+    #[serde(skip_serializing_if = "crate::json::is_default")]
     pub modes: Vec<(Option<i32>, Option<bool>)>,
     /// When the level was saved, as .NET's `DateTime.ToBinary`. Version 2 and later.
     pub date_time: Option<i64>,

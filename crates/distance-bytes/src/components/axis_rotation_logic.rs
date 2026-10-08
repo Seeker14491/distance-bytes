@@ -10,6 +10,7 @@ use crate::visit::{Visit, Visitor};
 /// Version 0 uses the generic field format.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct AxisRotationLogic {
     pub angular_speed: Option<f32>,

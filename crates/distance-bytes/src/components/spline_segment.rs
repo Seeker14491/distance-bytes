@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// (nothing) for version 0, and of version 3 for version 1.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct SplineSegment {
     /// Version 1 and later.

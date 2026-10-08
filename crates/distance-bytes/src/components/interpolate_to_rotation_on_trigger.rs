@@ -8,6 +8,7 @@ use crate::visit::{Visit, Visitor};
 /// `InterpolateToRotationOnTrigger`.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct InterpolateToRotationOnTrigger {
     pub actually_interpolate: Option<bool>,

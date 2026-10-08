@@ -8,6 +8,7 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 - Decodes `Transform` components (position, rotation, scale, children) and components in the game's generic field format (field names with typed values). The generic format stores absolute file offsets, which are recomputed on write, so objects can be added, removed or moved.
 - Decodes every component with its own serializer into a typed struct (`distance_bytes::components`), in every version the game reads, along with the level settings of level versions 0 and 1. Bodies that don't decode are kept as raw bytes. In the corpus, these are only bodies the game itself doesn't read.
 - Converts files to JSON and back losslessly (`distance_bytes::json`). Components are `{"type": "TeleporterEntrance", "version": 4, "guid": 12, "data": {...}}`, and values equal to the prefab's are left out. The module documentation describes the format.
+- Generates a JSON Schema (draft 2020-12) of the JSON format, with the optional `schema` feature (`distance_bytes::json::schema`). By default the schema describes JSON for a new level, with components in the versions the game writes and only the fields those versions have, for checking JSON written by hand or by an LLM. The full schema describes everything `to_json` writes; every file in the corpus fits it.
 - Handles objects nested any number of levels deep (one Workshop level nests them 469 deep) by growing the stack, on native targets.
 
 ## Layout
@@ -29,6 +30,7 @@ cargo run --release -p distance-bytes-cli -- <command>
 - `to-json <file> [out] [--compact]`: convert a file to JSON.
 - `from-json <json> <out>`: convert JSON back to a `.bytes` file.
 - `roundtrip <paths>... [--json]`: read and re-write every binary `.bytes` file under the paths and check that the output is identical. With `--json`, each file goes through JSON first.
+- `schema [out] [--full] [--components A,B] [--compact]`: write the JSON Schema of the JSON format. `--components` limits it to those component types (and `Transform` and `LevelSettings`), which keeps it small enough for an LLM prompt (13 KB compact for one type); `--full` describes all JSON `to-json` writes.
 - `stats <paths>...`: statistics about component types and how many bytes are still undecoded.
 - `trace <file>`: every value our decoder reads, as JSON lines.
 - `relocate <in> <out> [--pad N]`: re-write a level with N characters added to its name, which moves everything after it. Use it with `trace-check` to test that offsets are recomputed.
@@ -39,15 +41,15 @@ cargo run --release -p distance-bytes-cli -- <command>
 ## Tests
 
 ```bash
-cargo test
+cargo test --workspace --all-features
 ```
 
-`cargo test -- --ignored` also checks that every `f32` bit pattern survives JSON (about half a minute).
+`--all-features` includes the schema tests. `cargo test -- --ignored` also checks that every `f32` bit pattern survives JSON (about half a minute).
 
-The corpus test round-trips every binary `.bytes` file, directly and through JSON, under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). Use absolute paths, since tests run in the crate directory:
+The corpus test round-trips every binary `.bytes` file, directly and through JSON, under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). With the `schema` feature it also validates the JSON against the full schema, which triples its time. Use absolute paths, since tests run in the crate directory:
 
 ```bash
-DISTANCE_BYTES_CORPUS="C:/<repo>/game_assets_dump/Assets/Resources;C:/Users/<you>/Documents/My Games/Distance" cargo test --test corpus
+DISTANCE_BYTES_CORPUS="C:/<repo>/game_assets_dump/Assets/Resources;C:/Users/<you>/Documents/My Games/Distance" cargo test --release --all-features --test corpus
 ```
 
 ## Regenerating the schema

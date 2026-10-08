@@ -8,6 +8,7 @@ use crate::visit::{Visit, Visitor};
 /// `SetActiveAfterWarp`: Set this object active or inactive after a warp segment has completed.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct SetActiveAfterWarp {
     /// Named `Index` in version 0 only.

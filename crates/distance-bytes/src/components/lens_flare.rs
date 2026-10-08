@@ -9,6 +9,7 @@ use crate::visit::{Visit, Visitor};
 /// `LensFlare` (the game's `LensFlareWrapper`): simulated camera lens flares.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct LensFlare {
     /// Version 0 only, ignored by the game.

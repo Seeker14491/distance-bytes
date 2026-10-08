@@ -8,6 +8,7 @@ use crate::visit::{Visit, Visitor};
 /// `AnimatorCameraShake`: Shake the camera during certain events of an Animator.
 #[serde_with::skip_serializing_none]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct AnimatorCameraShake {
     pub play_intensity: Option<f32>,
