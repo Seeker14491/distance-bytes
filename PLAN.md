@@ -110,11 +110,15 @@ The BytesTrace plugin dumps them (`/prefab-defaults`, `dbytes prefabs`). For eve
   - Level version 0 (no end offsets) is decoded by field type. The corpus has no v0 level with reflection components, so this is covered by unit tests only.
   - String lengths are now only accepted in their shortest 7-bit encoding, so typed values always write back identically.
 - **Phase 3 (done)**:
-  - Every component with a hand-written `Visit` (96 types, 314 component versions) has a typed struct, translated from the decompiled C#. Most were drafted by a script and then checked by hand; the rest were written by hand. This includes the user-data components (replays, local leaderboards, level infos, profile progress and stats), so most of phase 5's binary files are covered.
+  - Every component with a hand-written `Visit` that writes values (104 types, 332 component versions) has a typed struct, translated from the decompiled C#. Most were drafted by a script and then checked by hand; the rest were written by hand. This includes the user-data components (replays, local leaderboards, level infos, Workshop level infos, profile progress and stats), so most of phase 5's binary files are covered.
+    - The script missed 8 types, added after phase 4d: `AchievementTrigger`, `AdventureSpecialIntro`, `AudioEffectZone`, `CubeMapRenderer` (class `LevelCubeMapRenderer`), `ExcludeFromEMP`, `GenerateCreditsNames` (`GenerateCreditsNameOrbs`), `Projector` (`ProjectorWrapper`) and `WorkshopPublishedFileInfos` (`WorkshopLevelInfos`). It took `CubeMapRenderer`, `GenerateCreditsNames` and `WorkshopPublishedFileInfos`, whose classes have other names, for types the game no longer has.
+    - Not typed: `TrackManipulatorNode`, `IgnoreInCullGroups` and `RaceStartCarSpawner` v1 write nothing. `SetActiveOnMIDIEvent` reads a `Note` in versions above 0, which the game never writes; a typed version 1 would become the version new components are written in.
+    - No prefab has `AudioEffectZone` or `Projector`, and neither is a component the game adds, so the game reads them in no level. They're checked against the decompiled code only.
+    - `trace-check` on the other six gives 0 mismatches and 0 load failures. The files: `AchievementTrigger` v0 and v1 in a level made from JSON, since no file has the type; `synth` samples of `AdventureSpecialIntro` and `ExcludeFromEMP` v0 (whose corpus bodies are all empty) and `GenerateCreditsNames` v1 and v2; the smallest files with `CubeMapRenderer` and `GenerateCreditsNames` v3; and `WorkshopLevelInfos.bytes`.
   - The `Visitor` handles values, arrays, dictionaries, byte arrays, references and counted lists of records. It also handles bodies that end early or carry extra bytes the way the game does (`BodyEnd`).
   - The settings of level versions 0 and 1 (`LevelSettings.OldVisit`) are decoded as `LegacyLevelSettings`.
-  - Corpus: 10.7M bodies decoded, and the 15,002 bodies still raw (926 KB) are ones the game doesn't read:
-    - components the current game has no class for (CubeMapRenderer, GenerateCreditsNames, GlobalFogLogic, WorkshopPublishedFileInfos);
+  - Corpus: 10.7M bodies decoded. The bodies still raw were 15,002 (926 KB). With the 8 types above they're 1,365 (1.6 KB), and 2,825 (3.2 KB) in a corpus of 6,677 files with more Workshop levels. The game reads none of them:
+    - GlobalFogLogic, which the current game has no class for;
     - BezierSplineTrack v2;
     - one MeshFilter wrapper;
     - one empty-field SetAbilitiesTrigger v0;

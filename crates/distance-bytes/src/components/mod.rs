@@ -2,12 +2,15 @@
 //! `Visit` method.
 
 mod ability_sign_button_color_logic;
+mod achievement_trigger;
 mod adventure_ability_settings;
 mod adventure_finish_trigger;
+mod adventure_special_intro;
 mod ambient_audio_object;
 mod animator;
 mod animator_audio;
 mod animator_camera_shake;
+mod audio_effect_zone;
 mod audio_event_trigger;
 mod axis_rotation_logic;
 mod back_and_forth_saw_logic;
@@ -22,6 +25,7 @@ mod cinematic_camera_focal_point;
 mod colliders;
 mod countdown_text_mesh_logic;
 mod credits_name_orb_logic;
+mod cube_map_renderer;
 mod custom_name;
 mod cutscene_camera;
 mod cutscene_manager_logic;
@@ -32,9 +36,11 @@ mod discoverable_stunt_area;
 mod empire_proximity_door_logic;
 mod engage_broken_pieces;
 mod environment;
+mod exclude_from_emp;
 mod fade_out;
 mod flock;
 mod force_volume;
+mod generate_credits_names;
 mod glitch_field_logic;
 mod golden_simples;
 mod gps_trigger;
@@ -64,6 +70,7 @@ mod popup_blocker_logic;
 mod power_poster_logic;
 mod profile_progress;
 mod profile_stats;
+mod projector;
 mod pulse_all;
 mod quarantine_trigger;
 mod rigidbody_axis_rotation_logic;
@@ -92,16 +99,20 @@ mod virus_dropper_drone_logic;
 mod warning_pulse_light;
 mod warp_anchor;
 mod wing_corruption_zone;
+mod workshop_published_file_infos;
 mod z_event_listener;
 mod z_event_trigger;
 
 pub use ability_sign_button_color_logic::AbilitySignButtonColorLogic;
+pub use achievement_trigger::AchievementTrigger;
 pub use adventure_ability_settings::AdventureAbilitySettings;
 pub use adventure_finish_trigger::AdventureFinishTrigger;
+pub use adventure_special_intro::AdventureSpecialIntro;
 pub use ambient_audio_object::AmbientAudioObject;
 pub use animator::{Animated, AnimatorCurve, AnimatorTrigger, GoldenAnimator};
 pub use animator_audio::AnimatorAudio;
 pub use animator_camera_shake::AnimatorCameraShake;
+pub use audio_effect_zone::AudioEffectZone;
 pub use audio_event_trigger::AudioEventTrigger;
 pub use axis_rotation_logic::AxisRotationLogic;
 pub use back_and_forth_saw_logic::BackAndForthSawLogic;
@@ -116,6 +127,7 @@ pub use cinematic_camera_focal_point::CinematicCameraFocalPoint;
 pub use colliders::{BoxCollider, CapsuleCollider, SerialCollider, SphereCollider};
 pub use countdown_text_mesh_logic::CountdownTextMeshLogic;
 pub use credits_name_orb_logic::CreditsNameOrbLogic;
+pub use cube_map_renderer::CubeMapRenderer;
 pub use custom_name::CustomName;
 pub use cutscene_camera::CutsceneCamera;
 pub use cutscene_manager_logic::CutsceneManagerLogic;
@@ -126,9 +138,11 @@ pub use discoverable_stunt_area::DiscoverableStuntArea;
 pub use empire_proximity_door_logic::EmpireProximityDoorLogic;
 pub use engage_broken_pieces::EngageBrokenPieces;
 pub use environment::{AmbientColors, Biodome, DirectionLight, Fog, Skybox};
+pub use exclude_from_emp::ExcludeFromEMP;
 pub use fade_out::FadeOut;
 pub use flock::Flock;
 pub use force_volume::ForceVolume;
+pub use generate_credits_names::GenerateCreditsNames;
 pub use glitch_field_logic::GlitchFieldLogic;
 pub use golden_simples::GoldenSimples;
 pub use gps_trigger::GPSTrigger;
@@ -158,6 +172,7 @@ pub use popup_blocker_logic::PopupBlockerLogic;
 pub use power_poster_logic::PowerPosterLogic;
 pub use profile_progress::{LevelProgress, ProfileProgress};
 pub use profile_stats::{PlayerStats, ProfileStats};
+pub use projector::Projector;
 pub use pulse_all::PulseAll;
 pub use quarantine_trigger::QuarantineTrigger;
 pub use rigidbody_axis_rotation_logic::RigidbodyAxisRotationLogic;
@@ -186,6 +201,7 @@ pub use virus_dropper_drone_logic::VirusDropperDroneLogic;
 pub use warning_pulse_light::WarningPulseLight;
 pub use warp_anchor::WarpAnchor;
 pub use wing_corruption_zone::WingCorruptionZone;
+pub use workshop_published_file_infos::{WorkshopLevelInfo, WorkshopPublishedFileInfos};
 pub use z_event_listener::ZEventListener;
 pub use z_event_trigger::ZEventTrigger;
 
@@ -322,13 +338,16 @@ macro_rules! component_data {
 
 component_data! {
     AbilitySignButtonColorLogic = ABILITY_SIGN_BUTTON_COLOR_LOGIC,
+    AchievementTrigger = ACHIEVEMENT_TRIGGER,
     AdventureAbilitySettings = ADVENTURE_ABILITY_SETTINGS,
     AdventureFinishTrigger = ADVENTURE_FINISH_TRIGGER,
+    AdventureSpecialIntro = ADVENTURE_SPECIAL_INTRO,
     AmbientAudioObject = AMBIENT_AUDIO_OBJECT,
     Animated = ANIMATED,
     GoldenAnimator = GOLDEN_ANIMATOR,
     AnimatorAudio = ANIMATOR_AUDIO,
     AnimatorCameraShake = ANIMATOR_CAMERA_SHAKE,
+    AudioEffectZone = AUDIO_EFFECT_ZONE,
     AudioEventTrigger = AUDIO_EVENT_TRIGGER,
     AxisRotationLogic = AXIS_ROTATION_LOGIC,
     BackAndForthSawLogic = BACK_AND_FORTH_SAW_LOGIC,
@@ -345,6 +364,7 @@ component_data! {
     CapsuleCollider = CAPSULE_COLLIDER,
     CountdownTextMeshLogic = COUNTDOWN_TEXT_MESH_LOGIC,
     CreditsNameOrbLogic = CREDITS_NAME_ORB_LOGIC,
+    CubeMapRenderer = CUBE_MAP_RENDERER,
     CustomName = CUSTOM_NAME,
     CutsceneCamera = CUTSCENE_CAMERA,
     CutsceneManagerLogic = CUTSCENE_MANAGER_LOGIC,
@@ -355,9 +375,11 @@ component_data! {
     EmpireProximityDoorLogic = EMPIRE_PROXIMITY_DOOR_LOGIC,
     EngageBrokenPieces = ENGAGE_BROKEN_PIECES,
     Biodome = BIODOME,
+    ExcludeFromEMP = EXCLUDE_FROM_EMP,
     FadeOut = FADE_OUT,
     Flock = FLOCK,
     ForceVolume = FORCE_VOLUME,
+    GenerateCreditsNames = GENERATE_CREDITS_NAMES,
     GlitchFieldLogic = GLITCH_FIELD_LOGIC,
     GoldenSimples = GOLDEN_SIMPLES,
     GPSTrigger = GPS_TRIGGER,
@@ -387,6 +409,7 @@ component_data! {
     PowerPosterLogic = POWER_POSTER_LOGIC,
     ProfileProgress = PROFILE_PROGRESS,
     ProfileStats = PROFILE_STATS,
+    Projector = PROJECTOR,
     PulseAll = PULSE_ALL,
     QuarantineTrigger = QUARANTINE_TRIGGER,
     RigidbodyAxisRotationLogic = RIGIDBODY_AXIS_ROTATION_LOGIC,
@@ -415,6 +438,7 @@ component_data! {
     WarningPulseLight = WARNING_PULSE_LIGHT,
     WarpAnchor = WARP_ANCHOR,
     WingCorruptionZone = WING_CORRUPTION_ZONE,
+    WorkshopPublishedFileInfos = WORKSHOP_PUBLISHED_FILE_INFOS,
     ZEventListener = Z_EVENT_LISTENER,
     ZEventTrigger = Z_EVENT_TRIGGER,
 }
