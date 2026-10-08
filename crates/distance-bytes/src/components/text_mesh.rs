@@ -16,8 +16,12 @@ pub struct TextMesh {
     /// Unity's `FontStyle`: 0 normal, 1 bold, 2 italic, 3 bold and italic.
     pub font_style: Option<i32>,
     /// `TextMeshWrapper.FontName`: 0 Petita, 1 Dense. Version 2 and later.
+    ///
+    /// Sets the material of the object's `MeshRenderer` to the font's (`PetitaBoldFontMat` or
+    /// `DenseBoldFontMat`), keeping its color.
     pub font: Option<i32>,
-    /// `[r, g, b, a]`. Version 2 and later.
+    /// `[r, g, b, a]`: the `_Color` of the object's `MeshRenderer` material, which a
+    /// `MeshRenderer` after this component also sets. Version 2 and later.
     pub color: Option<[f32; 4]>,
 }
 

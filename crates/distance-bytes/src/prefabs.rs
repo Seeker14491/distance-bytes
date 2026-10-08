@@ -308,17 +308,23 @@ impl fmt::Display for Unresolved {
 
 impl Level {
     /// Fills in every value that the level leaves to the prefabs of its objects, so that it has
-    /// the values the game reads it with, and returns what the game skips or merges. Objects get the
-    /// components and children of their prefabs that the level doesn't list, with GUID 0.
+    /// the values the game reads it with, and returns what the game skips or merges. Objects get
+    /// the components and children of their prefabs that the level doesn't list, with GUID 0.
     ///
     /// Bodies stay in the level's component versions, with the prefab's values for those their
     /// version doesn't have. A `MeshRenderer` has the materials of the prefab's renderer, with
     /// the level's colors read into them by material and color name (see
-    /// [`Unresolved::Material`] for an exception). The game's upgrades of old versions aren't
-    /// applied, and neither are its fixes of the values it reads: NaN or infinite `Transform`
-    /// values, scales under 1e-5, and a `Light`'s spot angle over 150 and intensity over 8.
-    /// Bodies that didn't decode, and bodies in a different format than the prefab's (the generic
-    /// format of an old version), are left as they are.
+    /// [`Unresolved::Material`] for an exception). Bodies that didn't decode, and bodies in a
+    /// different format than the prefab's (the generic format of an old version), are left as
+    /// they are.
+    ///
+    /// What the game does beyond reading the values isn't applied:
+    /// - its upgrades of old versions;
+    /// - its fixes of the values it reads: NaN or infinite `Transform` values, scales under 1e-5,
+    ///   and a `Light`'s spot angle over 150 and intensity over 8;
+    /// - values it sets from others as it reads them: those a `GoldenSimples` preset sets, the
+    ///   material a `TextMesh` font sets, and the pong values of an animation curve without
+    ///   custom ones.
     pub fn resolve(&mut self, defaults: &PrefabDefaults) -> Vec<Unresolved> {
         let mut out = Vec::new();
         if let LevelSettingsData::GameObject(obj) = &mut self.settings {

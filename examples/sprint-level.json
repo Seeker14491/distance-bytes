@@ -1,0 +1,303 @@
+{
+  "level": {
+    "name": "JSON Sprint",
+    "settings": {
+      "game_object": {
+        "name": "LevelSettings",
+        "components": [
+          {
+            "type": "LevelSettings",
+            "data": {
+              "level_name": "JSON Sprint",
+              "level_description": "A Sprint level written by hand as JSON.",
+              "modes": [[1, true]],
+              "diamond_time": 14000,
+              "gold_time": 17000,
+              "silver_time": 21000,
+              "bronze_time": 27000
+            }
+          }
+        ]
+      }
+    },
+    "layers": [
+      {
+        "name": "Track",
+        "flags": { "active": true },
+        "objects": [
+          {
+            "name": "LevelEditorCarSpawner",
+            "components": [
+              { "type": "Transform", "data": { "position": [0, 0, -232] } }
+            ]
+          },
+          {
+            "name": "EmpireStartZone",
+            "components": [
+              {
+                "type": "Transform",
+                "data": {
+                  "position": [0, 0, -64],
+                  "rotation": [0, 1, 0, 0],
+                  "children": [
+                    {
+                      "name": "SnapPoint",
+                      "components": [
+                        { "type": "TrackLink", "guid": 1001, "data": { "link_ref": 1002 } }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "GlassSplineRoad",
+            "components": [
+              {
+                "type": "Transform",
+                "data": {
+                  "position": [0, 0, 0],
+                  "scale": [16, 16, 16],
+                  "children": [
+                    {
+                      "name": "BezierSplineTrackEmpty1",
+                      "components": [
+                        {
+                          "type": "Transform",
+                          "data": { "position": [0, 0, -4], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] }
+                        },
+                        {
+                          "type": "TrackLink",
+                          "guid": 1002,
+                          "data": { "link_ref": 1001, "manipulator_node_should_be_created": true }
+                        }
+                      ]
+                    },
+                    {
+                      "name": "BezierSplineTrackEmpty2",
+                      "components": [
+                        {
+                          "type": "Transform",
+                          "data": { "position": [0, 0, 4], "rotation": [0, 1, 0, 0], "scale": [1, 1, 1] }
+                        },
+                        {
+                          "type": "TrackLink",
+                          "guid": 1003,
+                          "data": { "link_ref": 1004, "manipulator_node_should_be_created": true }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "MeshRenderer",
+                "data": {
+                  "materials": [
+                    { "material": "GlassRoad_Holo", "colors": [{ "name": "_Color", "color": [1, 0.45, 0.1, 1] }] }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "EmpireSplineRoad",
+            "components": [
+              {
+                "type": "Transform",
+                "data": {
+                  "position": [0, 0, 128],
+                  "scale": [16, 16, 16],
+                  "children": [
+                    {
+                      "name": "BezierSplineTrackEmpty1",
+                      "components": [
+                        {
+                          "type": "Transform",
+                          "data": { "position": [0, 0, -4], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] }
+                        },
+                        {
+                          "type": "TrackLink",
+                          "guid": 1004,
+                          "data": { "link_ref": 1003, "manipulator_node_should_be_created": false }
+                        }
+                      ]
+                    },
+                    {
+                      "name": "BezierSplineTrackEmpty2",
+                      "components": [
+                        {
+                          "type": "Transform",
+                          "data": { "position": [0, 0, 4], "rotation": [0, 1, 0, 0], "scale": [1, 1, 1] }
+                        },
+                        {
+                          "type": "TrackLink",
+                          "guid": 1005,
+                          "data": { "link_ref": 1006, "manipulator_node_should_be_created": true }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "EmpireCheckpoint",
+            "components": [
+              { "type": "Transform", "data": { "position": [0, 0, 128] } }
+            ]
+          },
+          {
+            "name": "EmpireEndZone",
+            "components": [
+              {
+                "type": "Transform",
+                "data": {
+                  "position": [0, 0, 192],
+                  "rotation": [0, 0, 0, 1],
+                  "children": [
+                    {
+                      "name": "SnapPoint",
+                      "components": [
+                        { "type": "TrackLink", "guid": 1006, "data": { "link_ref": 1005 } }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "EnableAbilitiesBox",
+            "components": [
+              { "type": "Transform", "data": { "position": [0, 10, 0], "scale": [60, 40, 128] } },
+              {
+                "type": "EnableAbilitiesTrigger",
+                "fields": { "EnableBoosting": true, "EnableJumping": true, "EnableJetRotating": true }
+              }
+            ]
+          },
+          {
+            "name": "KillGridInfinitePlane",
+            "components": [
+              { "type": "Transform", "data": { "position": [0, -100, 0] } }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Decorations",
+        "objects": [
+          {
+            "name": "Group",
+            "components": [
+              {
+                "type": "Transform",
+                "data": {
+                  "position": [0, 0, 64],
+                  "children": [
+                    {
+                      "name": "CubeGS",
+                      "components": [
+                        { "type": "Transform", "data": { "position": [-60, -20, 0], "scale": [0.125, 2.5, 0.125] } },
+                        { "type": "GoldenSimples", "data": { "preset": 3 } }
+                      ]
+                    },
+                    {
+                      "name": "CubeGS",
+                      "components": [
+                        { "type": "Transform", "data": { "position": [60, -20, 0], "scale": [0.125, 2.5, 0.125] } },
+                        { "type": "GoldenSimples", "data": { "preset": 0, "image_index": 5, "world_mapped": true } },
+                        {
+                          "type": "MeshRenderer",
+                          "data": {
+                            "materials": [
+                              {
+                                "material": "SimplesMaterial",
+                                "colors": [
+                                  { "name": "_Color", "color": [0.1, 0.3, 0.9, 1] },
+                                  { "name": "_EmitColor", "color": [0.2, 0.6, 1, 0.5] }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              { "type": "CustomName", "data": { "custom_name": "Pillars" } }
+            ]
+          },
+          {
+            "name": "CubeGS",
+            "components": [
+              { "type": "Transform", "data": { "position": [0, 100, 128], "scale": [0.25, 0.25, 0.25] } },
+              {
+                "type": "Animated",
+                "data": { "rotate": true, "rotate_axis": [0, 1, 0], "rotate_magnitude": 90 }
+              }
+            ]
+          },
+          {
+            "name": "WorldText",
+            "components": [
+              {
+                "type": "Transform",
+                "data": { "position": [0, 30, 200], "scale": [4, 4, 4] }
+              },
+              {
+                "type": "TextMesh",
+                "data": { "text": "Built from JSON", "font": 1, "color": [1, 0.85, 0.2, 1] }
+              }
+            ]
+          },
+          {
+            "name": "Light",
+            "components": [
+              { "type": "Transform", "data": { "position": [0, 12, 64] } },
+              { "type": "Light", "data": { "color": [1, 0.5, 0.2, 1], "intensity": 2, "range": 80 } }
+            ]
+          },
+          {
+            "name": "Teleporter",
+            "components": [
+              {
+                "type": "Transform",
+                "data": {
+                  "position": [-100, 0, 0],
+                  "children": [
+                    {
+                      "name": "Teleporter",
+                      "components": [{ "type": "TeleporterEntrance", "data": { "teleports_to": 7 } }]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "TeleporterExit",
+            "components": [
+              {
+                "type": "Transform",
+                "data": {
+                  "position": [-100, 0, 160],
+                  "children": [
+                    {
+                      "name": "Teleporter",
+                      "components": [{ "type": "TeleporterExit", "data": { "link_id": 7 } }]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

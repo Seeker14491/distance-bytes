@@ -11,6 +11,7 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 - Generates a JSON Schema (draft 2020-12) of the JSON format, with the optional `schema` feature (`distance_bytes::json::schema`). By default the schema describes JSON for a new level, with components in the versions the game writes and only the fields those versions have, for checking JSON written by hand or by an LLM. The full schema describes everything `to_json` writes; every file in the corpus fits it.
 - Builds files: `Level::new`, `GameObject::new("CubeGS").with_position(...).with(component)`, and components in the versions the game writes. `assign_guids` gives new objects and components GUIDs above the largest in the file, and `check` reports duplicate GUIDs and references to missing targets or to types the game can't use there (which make it fail to load the level). No file in the corpus has such problems.
 - Fills in the values a file leaves to the prefabs of its objects, as the game reads them (`resolve`), and leaves out those that are the same again (`minimize`), with `PrefabDefaults`. `resolve` also reports what the game skips or merges: objects without a prefab, children and components the prefab lacks, components the prefab has only as a subclass, repeats, and materials a renderer lacks. The defaults are in `data/prefab-defaults.bytes`: every prefab of the game's level editor (1,524) with every value, as the game creates them, dumped from the game with the BytesTrace plugin.
+- Levels written by hand as JSON load in the game. The example, `examples/sprint-level.json`, is a short Sprint track: the game reads every value as written, and what it has after loading matches `resolve`, apart from values it sets from others as it reads them (described on those fields).
 - Handles objects nested any number of levels deep (one Workshop level nests them 469 deep) by growing the stack, on native targets.
 
 ## Layout
@@ -20,6 +21,7 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 - `tools/schema-extract`: generates `schema/components.json`, the Rust `ComponentId` constants and the table of generic field types from the game's `Assembly-CSharp.dll`.
 - `tools/BytesTrace`: a BepInEx plugin that runs the game as an HTTP server and reports every value the game's own deserializer reads, so our decoder can be checked against it. It also dumps the prefab defaults.
 - `data/prefab-defaults.bytes`: the prefab defaults, the default for the `dbytes` commands that use them.
+- `examples/sprint-level.json`: a level written by hand as JSON.
 
 Game files (`game/`, `game_assets_dump/`) are not part of the repository.
 
@@ -47,13 +49,27 @@ cargo run --release -p distance-bytes-cli -- <command>
 - `prefabs [<paths>...] [--out <file>]`: dump the prefab defaults from the game, using the BytesTrace server, along with the prefabs that levels under the paths use.
 - `resolve-game-check <paths>... [--max N]`: load each level under the paths in the game, using the BytesTrace server, and compare what the game has afterwards with what resolving the level gives.
 
+## Writing a level as JSON
+
+A level lists its objects by prefab name, with only the values that differ from the prefab's; `examples/sprint-level.json` is one. `dbytes schema` describes the JSON, and `--components` cuts it to the types a level uses. To build the level and play it, put the file in `Documents/My Games/Distance/Levels/MyLevels`:
+
+```bash
+dbytes from-json level.json "My Level.bytes" --assign-guids
+```
+
+- Give GUIDs only to what something refers to, such as the `TrackLink`s of connected track pieces. `--assign-guids` gives the rest theirs.
+- Track pieces connect through the `TrackLink`s at their ends, each with `link_ref` set to the other's GUID. A spline road's ends are its children `BezierSplineTrackEmpty1` and `BezierSplineTrackEmpty2`, and a start or end zone's is its child `SnapPoint`. In the level editor, one link of each connected pair owns the node between them (`manipulator_node_should_be_created`).
+- A `GoldenSimples` body that sets values needs a `preset` of 0, or the prefab's preset replaces them.
+- Sizes: the simple shapes (`CubeGS`, `CylinderGS` and so on) are about 64 units across at scale 1, so a 4-unit post has a scale of about 0.06. A spline road at scale 16 with its ends 8 units apart is 128 units long, and the checkpoint's trigger over it is 70 units wide.
+- A `WorldText` reads correctly from its -z side, so a sign facing a car that drives along +z needs no rotation.
+
 ## Tests
 
 ```bash
 cargo test --workspace --all-features
 ```
 
-`--all-features` includes the schema tests. `cargo test -- --ignored` also checks that every `f32` bit pattern survives JSON (about half a minute).
+`--all-features` includes the schema tests. `cargo test -- --ignored` also checks that every `f32` bit pattern survives JSON (about half a minute). The example level test checks that `examples/sprint-level.json` builds without problems in its references, leaves the game nothing to skip, and fits the authoring schema.
 
 The corpus test round-trips every binary `.bytes` file, directly and through JSON, and checks that minimizing it against `data/prefab-defaults.bytes` keeps what resolving it gives, under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). With the `schema` feature it also validates the JSON against the full schema, which triples its time. Use absolute paths, since tests run in the crate directory:
 

@@ -15,9 +15,10 @@ pub struct Light {
     /// Unity's `LightType`: 0 spot, 1 directional, 2 point. Versions 0 and 1; later versions keep
     /// the prefab's type.
     pub r#type: Option<i32>,
-    /// `[r, g, b, a]`. From version 3 the game scales the color to a maximum component of 1,
-    /// moving the factor into the intensity.
+    /// `[r, g, b, a]`. From version 3 the game writes the color scaled to a maximum component of
+    /// 1, moving the factor into the intensity, and reads the alpha as 1.
     pub color: Option<[f32; 4]>,
+    /// From version 3 the game reads an intensity over 8 as 8, scaling the color up instead.
     pub intensity: Option<f32>,
     /// Version 0 only, ignored by the game.
     pub shadows: Option<i32>,
@@ -30,7 +31,7 @@ pub struct Light {
     /// Version 0 only, ignored by the game.
     pub shadow_softness_fade: Option<f32>,
     pub range: Option<f32>,
-    /// In degrees. See `has_spot_angle`.
+    /// In degrees, read as at most 150. See `has_spot_angle`.
     pub spot_angle: Option<f32>,
     /// Whether the body has `spot_angle`. Versions 0 and 1 always have it; later versions only
     /// when the light is a spot light, which depends on the prefab, so it's read from the length

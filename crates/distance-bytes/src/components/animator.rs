@@ -25,10 +25,15 @@ pub struct AnimatorCurve {
     /// Old format of `Animated` before version 6 only, in place of `editor_animation_t`.
     pub centered_animation: Option<bool>,
     pub editor_animation_t: Option<f32>,
+    /// Whether the pong values are used. When they aren't, the game sets them when it reads the
+    /// curve: the delay and duration to the curve's, and the curve type to the opposite of the
+    /// curve's.
     pub custom_pong_values: Option<bool>,
+    /// See `custom_pong_values`.
     pub pong_delay: Option<f32>,
+    /// See `custom_pong_values`.
     pub pong_duration: Option<f32>,
-    /// `AnimatorBase.CurveType`.
+    /// `AnimatorBase.CurveType`. See `custom_pong_values`.
     pub pong_curve_type: Option<i32>,
 }
 

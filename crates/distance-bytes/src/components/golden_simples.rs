@@ -15,7 +15,13 @@ pub struct GoldenSimples {
     /// Version 1 and later. In versions 1 to 3, indexes past that version's texture count are
     /// shifted by the game to make room for textures added later.
     pub emit_index: Option<i32>,
-    /// `GoldenSimples.Presets`. Version 1 and later.
+    /// `GoldenSimples.Presets`, with 0 for none (`Custom`). Version 1 and later.
+    ///
+    /// Not a setting: when the game reads the body, a preset other than 0 replaces the other
+    /// values and the colors of the object's `MeshRenderer` with the preset's, and then becomes
+    /// 0. The shapes' prefabs have one (`CubeGS` has 25), so a body that sets other values needs
+    /// a `preset` of 0 too. A `MeshRenderer` after this component in the object still sets its
+    /// colors.
     pub preset: Option<i32>,
     pub texture_scale: Option<[f32; 3]>,
     pub texture_offset: Option<[f32; 3]>,

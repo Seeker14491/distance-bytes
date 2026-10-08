@@ -408,6 +408,17 @@ fn game_check_files(
     Ok(())
 }
 
+/// What sets an object's renderer when the game reads the object, which resolving leaves as the
+/// file or the prefab has it.
+#[derive(Clone, Copy)]
+enum RendererSetBy {
+    /// A `GoldenSimples` preset, which sets the colors (`GoldenSimples.CreateNewMaterial`).
+    Preset,
+    /// A `TextMesh` font, which sets the material (`TextMeshWrapper.SetFont`), with the
+    /// `TextMesh` color as its `_Color`.
+    Font(i32),
+}
+
 /// Differences between what the game has after reading a level and what resolving it gives, as
 /// `(kind, detail)`.
 struct Diffs<'a> {
@@ -507,6 +518,16 @@ impl Diffs<'_> {
         if self.mapping {
             self.guids.insert(game.guid, ours.guid);
         }
+        let set_by = ours.components.iter().find_map(|c| match &c.body {
+            distance_bytes::ComponentBody::Data { data, .. } => match data {
+                ComponentData::GoldenSimples(g) if g.preset.is_some_and(|p| p != 0) => {
+                    Some(RendererSetBy::Preset)
+                }
+                ComponentData::TextMesh(t) => t.font.map(RendererSetBy::Font),
+                _ => None,
+            },
+            _ => None,
+        });
         let mut used = vec![false; ours.components.len()];
         for gc in &game.components {
             let found = ours
@@ -521,7 +542,13 @@ impl Diffs<'_> {
                     if self.mapping {
                         self.guids.insert(gc.guid, ours.components[i].guid);
                     }
-                    self.component(&format!("{path}.{id}"), &game.name, gc, &ours.components[i]);
+                    self.component(
+                        &format!("{path}.{id}"),
+                        &game.name,
+                        gc,
+                        &ours.components[i],
+                        set_by,
+                    );
                 }
                 None => self.add(
                     format!("missing component {}.{id}", game.name),
@@ -549,6 +576,7 @@ impl Diffs<'_> {
         object: &distance_bytes::DString,
         game: &distance_bytes::Component,
         ours: &distance_bytes::Component,
+        set_by: Option<RendererSetBy>,
     ) {
         use distance_bytes::{ComponentBody as B, ComponentKind as K, FieldValue};
         let version = |c: &distance_bytes::Component| match c.kind {
@@ -697,7 +725,7 @@ impl Diffs<'_> {
                     }
                 }
             }
-            (B::Data { .. }, B::Data { .. }) => {
+            (B::Data { data: gd, .. }, B::Data { data: od, .. }) => {
                 let as_json = |c: &distance_bytes::Component| {
                     let text = json::to_string(c).unwrap_or_default();
                     let value: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
@@ -705,6 +733,10 @@ impl Diffs<'_> {
                 };
                 let (g, o) = (as_json(game), as_json(ours));
                 if g != o {
+                    if let Some(why) = set_on_read(gd, od, set_by) {
+                        self.upgraded.push(format!("{why} {object}"));
+                        return;
+                    }
                     let keys: BTreeSet<&String> = g
                         .as_object()
                         .into_iter()
@@ -714,12 +746,20 @@ impl Diffs<'_> {
                     for k in keys {
                         // The game clamps spot angles to 150 degrees
                         // (`LightWrapper.maxSpotlightAngle_`).
-                        let clamped = game.id() == Some(distance_bytes::ComponentId::LIGHT)
+                        let clamped = game.id() == Some(ComponentId::LIGHT)
                             && k == "spot_angle"
                             && g.get(k).and_then(|v| v.as_f64()) == Some(150.0)
                             && o.get(k).and_then(|v| v.as_f64()).is_some_and(|v| v > 150.0);
+                        // The game sets an animation curve's pong values from its other values
+                        // when they aren't custom (`AnimatorBase.VisitCurve`).
+                        let pong = k == "curve"
+                            && o[k].get("custom_pong_values") == Some(&false.into())
+                            && g.get(k).map(without_pong) == o.get(k).map(without_pong);
                         if clamped {
                             self.upgraded.push(format!("spot angle clamped {object}"));
+                        } else if pong {
+                            self.upgraded
+                                .push(format!("pong values follow the curve {object}"));
                         } else if g.get(k) != o.get(k) {
                             self.add(
                                 format!("value {key}.{k}"),
@@ -740,6 +780,45 @@ impl Diffs<'_> {
             ),
         }
     }
+}
+
+/// What the game sets when it reads a body, which resolving leaves as the file or the prefab has
+/// it, if that's why `game` differs from `ours`.
+fn set_on_read(
+    game: &ComponentData,
+    ours: &ComponentData,
+    set_by: Option<RendererSetBy>,
+) -> Option<&'static str> {
+    match (game, ours) {
+        // The game applies a preset to the other values, and then resets it.
+        (ComponentData::GoldenSimples(g), ComponentData::GoldenSimples(o))
+            if o.preset.is_some_and(|p| p != 0) && g.preset == Some(0) =>
+        {
+            Some("preset applied")
+        }
+        (ComponentData::MeshRenderer(g), ComponentData::MeshRenderer(_)) => match set_by? {
+            RendererSetBy::Preset => Some("colors set by preset"),
+            RendererSetBy::Font(font) => {
+                let name = if font == 1 {
+                    "DenseBoldFontMat"
+                } else {
+                    "PetitaBoldFontMat"
+                };
+                matches!(&g.materials[..], [m] if m.material.as_ref().is_some_and(|n| *n == name))
+                    .then_some("material set by font")
+            }
+        },
+        _ => None,
+    }
+}
+
+/// An animation curve without its pong values.
+fn without_pong(curve: &serde_json::Value) -> serde_json::Value {
+    let mut curve = curve.clone();
+    if let Some(values) = curve.as_object_mut() {
+        values.retain(|k, _| !k.starts_with("pong_"));
+    }
+    curve
 }
 
 /// A `MeshRenderer` without the materials and colors that resolving appends as skipped.
