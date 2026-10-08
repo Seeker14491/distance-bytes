@@ -13,6 +13,7 @@ use distance_bytes::{
 use rayon::prelude::*;
 
 mod prefabs;
+mod replay;
 mod trace;
 
 /// Where `dbytes prefabs` writes the prefab defaults.
@@ -158,6 +159,26 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         max: usize,
     },
+    /// Print the car states of a replay (a ghost or a leaderboard entry), as JSON lines.
+    Replay {
+        input: PathBuf,
+        /// The file to write; standard output if omitted.
+        output: Option<PathBuf>,
+    },
+    /// Compare the car states we decode from the replays under the given paths with the game's,
+    /// using the BytesTrace plugin.
+    ReplayCheck {
+        paths: Vec<PathBuf>,
+        #[arg(long, default_value = "http://localhost:18501")]
+        server: String,
+        /// Maximum differences to print per file.
+        #[arg(long, default_value_t = 10)]
+        max: usize,
+        /// Also check each replay converted to versions 5 and 4, which recorded replays no
+        /// longer have.
+        #[arg(long)]
+        older: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -211,6 +232,13 @@ fn main() -> Result<()> {
                 .collect();
             trace::trace_check(&files, &server, max)
         }
+        Command::Replay { input, output } => replay::print(&input, output.as_deref()),
+        Command::ReplayCheck {
+            paths,
+            server,
+            max,
+            older,
+        } => replay::check(&binary_files(&paths)?, &server, max, older),
     }
 }
 

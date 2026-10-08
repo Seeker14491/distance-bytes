@@ -1,8 +1,8 @@
 //! Round-trips every binary `.bytes` file under the directories listed in the
 //! `DISTANCE_BYTES_CORPUS` environment variable (separated like `PATH`), directly and through
 //! JSON, and with the `schema` feature validates the JSON against the full schema. Also checks
-//! that minimizing each file against `data/prefab-defaults.bytes` keeps what resolving it gives.
-//! Skipped if unset.
+//! that minimizing each file against `data/prefab-defaults.bytes` keeps what resolving it gives,
+//! and that the states of replays decode. Skipped if unset.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -37,6 +37,12 @@ fn check(data: &[u8]) -> Option<String> {
     };
     if file.write() != data {
         return Some("output differs".into());
+    }
+    if let BytesFile::GameObject(obj) = &file
+        && let Some((replay, version)) = obj.car_replay_data()
+        && let Err(e) = replay.states(version)
+    {
+        return Some(format!("replay states: {e}"));
     }
     // Compared as written, since a NaN isn't equal to itself.
     let mut resolved = file.clone();
@@ -155,6 +161,6 @@ fn corpus_round_trip() {
     };
     eprintln!(
         "{checked} files round-tripped, directly and through JSON{validated}; minimizing them \
-         keeps what resolving gives"
+         keeps what resolving gives, and replays decode"
     );
 }

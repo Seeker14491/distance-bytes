@@ -16,6 +16,7 @@ pub mod io;
 pub mod json;
 mod legacy_settings;
 mod prefabs;
+pub mod replay;
 mod stack;
 mod string;
 mod tree;

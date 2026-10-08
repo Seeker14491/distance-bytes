@@ -13,6 +13,7 @@ A Rust library for reading and writing the `.bytes` files of the game [Distance]
 - Fills in the values a file leaves to the prefabs of its objects, as the game reads them (`resolve`), and leaves out those that are the same again (`minimize`), with `PrefabDefaults`. `resolve` also reports what the game skips or merges: objects without a prefab, children and components the prefab lacks, components the prefab has only as a subclass, repeats, and materials a renderer lacks. The defaults are in `data/prefab-defaults.bytes`: every prefab of the game's level editor (1,524) with every value, as the game creates them, dumped from the game with the BytesTrace plugin.
 - Levels written by hand as JSON load in the game. The example, `examples/sprint-level.json`, is a short Sprint track: the game reads every value as written, and what it has after loading matches `resolve`, apart from values it sets from others as it reads them (described on those fields).
 - Handles objects nested any number of levels deep (one Workshop level nests them 469 deep): natively by growing the stack, and when reading JSON by reading the children of deep objects separately. On wasm, where the stack can't grow, everything else handles about 1,100 levels in a browser.
+- Decodes the recorded runs of replays (`distance_bytes::replay`): the car's position, velocity, rotation, angular velocity and the player's inputs, every 3 frames, as the game decompresses them to play a ghost. The states are the game's to the bit, checked against the game for the corpus's 80 replays and for them converted to the older formats.
 - Runs in browsers and Node as a wasm package (`crates/distance-bytes-wasm`), which reads and writes files and their JSON, checks, resolves and minimizes them, and gives the JSON Schema. Every file in the corpus round-trips through it, directly and through JSON.
 
 ## Layout
@@ -50,6 +51,8 @@ cargo run --release -p distance-bytes-cli -- <command>
 - `resolve-check <paths>...`: check that resolving each binary file under the paths gives the same after minimizing it, count what the game skips, and total the sizes.
 - `prefabs [<paths>...] [--out <file>]`: dump the prefab defaults from the game, using the BytesTrace server, along with the prefabs that levels under the paths use.
 - `resolve-game-check <paths>... [--max N]`: load each level under the paths in the game, using the BytesTrace server, and compare what the game has afterwards with what resolving the level gives.
+- `replay <file> [out]`: the car's states of a replay, as JSON lines, with the inputs unpacked.
+- `replay-check <paths>... [--older] [--max N]`: compare the states of the replays under the paths with those the game decodes, using the BytesTrace server. With `--older`, also check each replay converted to versions 5 and 4.
 
 ## Writing a level as JSON
 
@@ -93,6 +96,7 @@ const level = JSON.parse(file.toJson());
 
 - `BytesFile.read(bytes)` and `BytesFile.fromJson(text)` read a file; `write()` and `toJson(pretty)` write it. `kind` is `"level"` or `"game_object"`, and `name` the level's or object's name.
 - `assignGuids()`, `maxGuid()` and `check()` work as in Rust, and `resolve(defaults)` and `minimize(defaults)` take a `PrefabDefaults.read(bytes)` of `data/prefab-defaults.bytes`, which also gives `prefabNames()` and each `prefab(name)` as a file. `check()` and `resolve()` return `{message, guid}` objects.
+- `replayStates()` decodes a replay's car states, or gives `undefined` for other files. Its `frames`, `positions`, `velocities`, `rotations` (quaternions as x, y, z, w), `angularVelocities` and `directives` are typed arrays with the values of every state in turn, and `inputs(i)` unpacks the player's inputs at a state.
 - `schema(full, components)` is the JSON Schema as text, as `dbytes schema` writes it.
 - Errors are thrown as `Error`s with the library's message, for JSON with the path, line and column.
 - Files live in the module's memory until `free()` is called on them or they're declared with `using`. The garbage collector frees them too, but too late when reading many files.
@@ -107,13 +111,13 @@ cargo test --workspace --all-features
 
 `--all-features` includes the schema tests. `cargo test -- --ignored` also checks that every `f32` bit pattern survives JSON (about half a minute). The example level test checks that `examples/sprint-level.json` builds without problems in its references, leaves the game nothing to skip, and fits the authoring schema.
 
-The corpus test round-trips every binary `.bytes` file, directly and through JSON, and checks that minimizing it against `data/prefab-defaults.bytes` keeps what resolving it gives, under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). With the `schema` feature it also validates the JSON against the full schema, which triples its time. Use absolute paths, since tests run in the crate directory:
+The corpus test round-trips every binary `.bytes` file, directly and through JSON, checks that minimizing it against `data/prefab-defaults.bytes` keeps what resolving it gives, and decodes the states of replays, under the directories in `DISTANCE_BYTES_CORPUS` (separated like `PATH`, so `;` on Windows). With the `schema` feature it also validates the JSON against the full schema, which triples its time. Use absolute paths, since tests run in the crate directory:
 
 ```bash
 DISTANCE_BYTES_CORPUS="C:/<repo>/game_assets_dump/Assets/Resources;C:/Users/<you>/Documents/My Games/Distance" cargo test --release --all-features --test corpus
 ```
 
-`crates/distance-bytes-wasm/tests/corpus.mjs` tests the built `pkg` with Node: the example level builds, and with `DISTANCE_BYTES_CORPUS` set (separated by `;`), every binary file round-trips, directly and through JSON, and its JSON has no integers that JavaScript numbers can't hold.
+`crates/distance-bytes-wasm/tests/corpus.mjs` tests the built `pkg` with Node: the example level builds, and with `DISTANCE_BYTES_CORPUS` set (separated by `;`), every binary file round-trips, directly and through JSON, its JSON has no integers that JavaScript numbers can't hold, and replays decode.
 
 ```bash
 node crates/distance-bytes-wasm/tests/corpus.mjs
@@ -146,8 +150,9 @@ It listens on `localhost:18501` (set `BYTES_TRACE_PORT` to change it). Endpoints
 - `/level-bytes-full`
 - `/prefab-names` (with an empty body)
 - `/prefab-defaults`
+- `/replay-states`
 - `/ping` (GET)
 
 For the trace endpoints, each line of the response is a JSON object for one read, with the absolute offset `o`, length `l`, type `t`, field name `n` and value `v`. Floats are given as their bit patterns. Scope headers have `mark` and `len`. `skip` lines mean the game didn't read a scope exactly to its end and seeked to the end; reads past a scope's end that the game seeked back from are marked `overread`. The last line reports whether the game loaded the file successfully.
 
-`/level-bytes-full` loads a level and returns it as the game writes it, with every component and value rather than only those that differ from the prefabs (status 422 if the game can't load it). `/prefab-names` lists the level editor's prefabs, and `/prefab-defaults` takes prefab names, one per line, and returns a JSON line per prefab with the `.bytes` of an object created from it, in full, and one per component type the game adds to objects.
+`/level-bytes-full` loads a level and returns it as the game writes it, with every component and value rather than only those that differ from the prefabs (status 422 if the game can't load it). `/prefab-names` lists the level editor's prefabs, and `/prefab-defaults` takes prefab names, one per line, and returns a JSON line per prefab with the `.bytes` of an object created from it, in full, and one per component type the game adds to objects. `/replay-states` loads a replay as the game does for a ghost and returns its states, decompressed, as version 4 replays keep them (status 422 if the game can't load it).

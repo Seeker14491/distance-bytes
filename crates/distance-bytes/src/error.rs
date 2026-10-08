@@ -45,6 +45,8 @@ pub enum ErrorKind {
     NoFields,
     /// The file isn't prefab defaults written by `PrefabDefaults::write`.
     NotPrefabDefaults,
+    /// A packet of a replay's buffer ends before its data starts or past the buffer.
+    InvalidPacket,
 }
 
 impl Error {
@@ -75,6 +77,7 @@ impl fmt::Display for Error {
             ErrorKind::UnsupportedVersion(v) => write!(f, "unsupported component version {v}"),
             ErrorKind::NoFields => write!(f, "no fields"),
             ErrorKind::NotPrefabDefaults => write!(f, "not prefab defaults"),
+            ErrorKind::InvalidPacket => write!(f, "invalid replay packet"),
         }
     }
 }

@@ -173,6 +173,22 @@ public class BytesTracePlugin : BaseUnityPlugin
                 Resource.UnloadUnusedAssets();
                 break;
             }
+            case "/replay-states":
+            {
+                // As the game loads a replay for a ghost, with its states decompressed.
+                var replay = CarReplayData.LoadFromBytes(data, -1);
+                if (replay == null)
+                {
+                    response.StatusCode = 422;
+                }
+                else
+                {
+                    Respond(response, replay.StateBuffer_ ?? new byte[0]);
+                    Destroy(replay.gameObject);
+                }
+                Resource.UnloadUnusedAssets();
+                break;
+            }
             case "/prefab-names":
                 Respond(response, string.Join("\n", PrefabNames().ToArray()) + "\n");
                 break;

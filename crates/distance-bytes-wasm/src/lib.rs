@@ -12,6 +12,7 @@
 //! 1,100 levels deep (the deepest known level has 470). Beyond that, everything but reading
 //! JSON runs out of stack, which, like a panic, leaves the module unusable.
 
+use distance_bytes::replay::CarState;
 use distance_bytes::{Problem, Unresolved, json};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -22,6 +23,21 @@ const NOTE: &str = r#"
 export interface Note {
     message: string;
     guid: number;
+}
+
+/**
+ * The player's inputs at a state of a replay. Steering, rotation in the air (pitch, yaw and
+ * roll) and gas are from -1 to 1, and braking from 0 to 1.
+ */
+export interface Inputs {
+    steer: number;
+    pitch: number;
+    yaw: number;
+    roll: number;
+    gas: number;
+    brake: number;
+    boost: boolean;
+    grip: boolean;
 }
 "#;
 
@@ -151,6 +167,80 @@ impl BytesFile {
     #[wasm_bindgen(js_name = clone)]
     pub fn duplicate(&self) -> BytesFile {
         BytesFile(self.0.clone())
+    }
+
+    /// The car's states of a replay, as the game plays them, or `undefined` if the file isn't
+    /// a replay. Throws if the replay's data is malformed.
+    #[wasm_bindgen(js_name = replayStates)]
+    pub fn replay_states(&self) -> Result<Option<ReplayStates>, JsError> {
+        let distance_bytes::BytesFile::GameObject(obj) = &self.0 else {
+            return Ok(None);
+        };
+        let Some((replay, version)) = obj.car_replay_data() else {
+            return Ok(None);
+        };
+        Ok(Some(ReplayStates(replay.states(version)?)))
+    }
+}
+
+/// The car's states of a replay, one every 3 frames at 100 frames a second. Each getter
+/// returns a new array with the values of every state in turn.
+#[wasm_bindgen]
+pub struct ReplayStates(Vec<CarState>);
+
+#[wasm_bindgen]
+impl ReplayStates {
+    /// The number of states.
+    #[wasm_bindgen(getter)]
+    pub fn length(&self) -> usize {
+        self.0.len()
+    }
+
+    /// The frame of each state, from the start of the recording.
+    #[wasm_bindgen(getter)]
+    pub fn frames(&self) -> Vec<i32> {
+        self.0.iter().map(|s| s.frame).collect()
+    }
+
+    /// The car's position at each state: x, y and z.
+    #[wasm_bindgen(getter)]
+    pub fn positions(&self) -> Vec<f32> {
+        self.0.iter().flat_map(|s| s.position).collect()
+    }
+
+    /// The car's velocity at each state, in meters a second: x, y and z.
+    #[wasm_bindgen(getter)]
+    pub fn velocities(&self) -> Vec<f32> {
+        self.0.iter().flat_map(|s| s.velocity).collect()
+    }
+
+    /// The car's rotation at each state, a quaternion: x, y, z and w.
+    #[wasm_bindgen(getter)]
+    pub fn rotations(&self) -> Vec<f32> {
+        self.0.iter().flat_map(|s| s.rotation).collect()
+    }
+
+    /// The car's angular velocity at each state, in radians a second: x, y and z.
+    #[wasm_bindgen(getter, js_name = angularVelocities)]
+    pub fn angular_velocities(&self) -> Vec<f32> {
+        self.0.iter().flat_map(|s| s.angular_velocity).collect()
+    }
+
+    /// The player's inputs at each state, packed as the game packs them.
+    #[wasm_bindgen(getter)]
+    pub fn directives(&self) -> Vec<i32> {
+        self.0.iter().map(|s| s.directives).collect()
+    }
+
+    /// The player's inputs at the state at `index`, or `undefined` past the last.
+    #[wasm_bindgen(unchecked_return_type = "Inputs | undefined")]
+    pub fn inputs(&self, index: usize) -> JsValue {
+        match self.0.get(index) {
+            Some(state) => {
+                serde_wasm_bindgen::to_value(&state.inputs()).expect("numbers and booleans convert")
+            }
+            None => JsValue::UNDEFINED,
+        }
     }
 }
 
