@@ -157,3 +157,16 @@ It listens on `localhost:18501` (set `BYTES_TRACE_PORT` to change it). Endpoints
 For the trace endpoints, each line of the response is a JSON object for one read, with the absolute offset `o`, length `l`, type `t`, field name `n` and value `v`. Floats are given as their bit patterns. Scope headers have `mark` and `len`. `skip` lines mean the game didn't read a scope exactly to its end and seeked to the end; reads past a scope's end that the game seeked back from are marked `overread`. The last line reports whether the game loaded the file successfully.
 
 `/level-bytes-full` loads a level and returns it as the game writes it, with every component and value rather than only those that differ from the prefabs (status 422 if the game can't load it). `/prefab-names` lists the level editor's prefabs, and `/prefab-defaults` takes prefab names, one per line, and returns a JSON line per prefab with the `.bytes` of an object created from it, in full, and one per component type the game adds to objects. `/replay-states` loads a replay as the game does for a ghost and returns its states, decompressed, as version 4 replays keep them (status 422 if the game can't load it). `/replay-events` loads a replay the same way and returns a JSON line per event as a ghost plays it: its frame, index and type, the fields of its data (floats as `{"f32": bits}`, structs as objects), and how many bytes the game read.
+
+## License
+
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

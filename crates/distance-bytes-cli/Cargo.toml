@@ -3,6 +3,7 @@ name = "distance-bytes-cli"
 description = "Command-line tools for Distance .bytes files"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [[bin]]

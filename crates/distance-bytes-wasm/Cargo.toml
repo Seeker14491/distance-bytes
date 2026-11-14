@@ -3,6 +3,7 @@ name = "distance-bytes-wasm"
 description = "JavaScript bindings of distance-bytes for browsers and Node, via wasm-bindgen"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish.workspace = true
 
 [lib]
