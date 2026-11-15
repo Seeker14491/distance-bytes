@@ -23,6 +23,9 @@ pub enum ErrorKind {
     InvalidLength,
     /// An element count was negative.
     NegativeCount(i32),
+    /// An element of an array, dictionary or list of records takes no bytes, as when the body
+    /// ends before it. The game reads such elements as defaults, as many as the count says.
+    EmptyElement,
     /// A boolean byte other than 0 or 1.
     InvalidBool(u8),
     /// A scope had bytes left over after its contents were read.
@@ -68,6 +71,7 @@ impl fmt::Display for Error {
             ErrorKind::InvalidScopeLength(len) => write!(f, "invalid scope length {len}"),
             ErrorKind::InvalidLength => write!(f, "invalid length prefix"),
             ErrorKind::NegativeCount(n) => write!(f, "negative element count {n}"),
+            ErrorKind::EmptyElement => write!(f, "element with no data"),
             ErrorKind::InvalidBool(b) => write!(f, "invalid boolean byte {b:#04x}"),
             ErrorKind::TrailingBytes { len } => write!(f, "{len} unread bytes at end of scope"),
             ErrorKind::UnknownRoot(mark) => write!(f, "unknown root mark {mark}"),

@@ -219,9 +219,16 @@ pub(crate) trait Visitor: Sized {
             if i == items.len() {
                 items.push(T::default());
             }
-            f(self, &mut items[i])?;
+            let item = &mut items[i];
+            self.element(|v| f(v, item))?;
         }
         Ok(())
+    }
+
+    /// Visits an element of an array, dictionary or list of records with `f`. When reading, the
+    /// element must take at least one byte (see [`ErrorKind::EmptyElement`]).
+    fn element(&mut self, f: impl FnOnce(&mut Self) -> Result<()>) -> Result<()> {
+        f(self)
     }
 
     /// The number of bytes left in the body when reading, or `None` when writing. For the few
@@ -352,8 +359,20 @@ impl Visitor for ReadVisitor<'_, '_> {
         items.reserve(count.min(self.r.remaining()));
         for _ in 0..count {
             let mut item = T::default();
-            f(self, &mut item)?;
+            self.element(|v| f(v, &mut item))?;
             items.push(item);
+        }
+        Ok(())
+    }
+
+    fn element(&mut self, f: impl FnOnce(&mut Self) -> Result<()>) -> Result<()> {
+        // An element read from nothing, as when the body ends before it, would be followed by as
+        // many more as the count says, which takes any amount of memory for a large count. The
+        // game fills those with defaults, but no file has them, so the body isn't decoded.
+        let start = self.r.pos();
+        f(self)?;
+        if self.r.pos() == start {
+            return Err(Error::new(start, ErrorKind::EmptyElement));
         }
         Ok(())
     }
@@ -417,12 +436,17 @@ impl<'w> WriteVisitor<'w> {
         self.values += 1;
     }
 
-    fn sequence_start(&mut self, mark: i32, len: usize) {
+    /// Called where a truncated body can't end: before an array or dictionary, and before an
+    /// element of one or a record. If the body would be cut by then, the whole body is written.
+    fn no_cut_here(&mut self) {
         if self.cut.is_some_and(|cut| self.values >= cut) {
-            // A truncated body can't end before an array or dictionary.
             self.cut = None;
             self.cut_pos = None;
         }
+    }
+
+    fn sequence_start(&mut self, mark: i32, len: usize) {
+        self.no_cut_here();
         self.w.i32(mark);
         self.w.count(len);
     }
@@ -458,9 +482,14 @@ impl Visitor for WriteVisitor<'_> {
     ) -> Result<()> {
         self.sequence_start(mark, items.len());
         for item in items {
-            f(self, item)?;
+            self.element(|v| f(v, item))?;
         }
         Ok(())
+    }
+
+    fn element(&mut self, f: impl FnOnce(&mut Self) -> Result<()>) -> Result<()> {
+        self.no_cut_here();
+        f(self)
     }
 
     fn bytes(&mut self, _name: &'static str, v: &mut Vec<u8>) -> Result<()> {
@@ -772,5 +801,82 @@ mod tests {
             let (read, end) = read.unwrap_or_else(|e| panic!("v{version}: {e}"));
             assert_eq!((*read, end), (data, BodyEnd::Complete), "v{version}");
         }
+    }
+
+    type Pairs = Vec<(i32, bool)>;
+
+    fn visit_pairs(v: &mut impl Visitor, items: &mut Pairs) -> Result<()> {
+        v.dictionary("pairs", items, |v, (key, value)| {
+            v.plain("key", key)?;
+            v.plain("value", value)
+        })
+    }
+
+    /// The pairs of a body that is a dictionary, and where the body is cut.
+    fn read_pairs(bytes: &[u8]) -> Result<(Pairs, Option<u32>)> {
+        let mut r = Reader::new(bytes);
+        let mut v = ReadVisitor::new(&mut r);
+        let mut items = Vec::new();
+        visit_pairs(&mut v, &mut items)?;
+        Ok((items, v.cut))
+    }
+
+    fn write_pairs(items: &[(i32, bool)], cut: Option<u32>) -> Vec<u8> {
+        let mut w = Writer::new();
+        let mut v = WriteVisitor::new(&mut w, cut);
+        visit_pairs(&mut v, &mut items.to_vec()).unwrap();
+        if let Some(pos) = v.cut_pos {
+            w.truncate(pos);
+        }
+        w.finish()
+    }
+
+    /// A count that the body ends right after isn't read as that many default elements, which
+    /// for a large count would take any amount of memory.
+    #[test]
+    fn count_past_end_of_body() {
+        for count in [1, i32::MAX] {
+            let mut w = Writer::new();
+            w.i32(mark::DICTIONARY);
+            w.i32(count);
+            let err = read_pairs(&w.finish()).unwrap_err();
+            assert_eq!(err.kind, ErrorKind::EmptyElement, "count {count}");
+        }
+
+        let mut w = Writer::new();
+        w.i32(i32::MAX);
+        let bytes = w.finish();
+        let mut r = Reader::new(&bytes);
+        let mut v = ReadVisitor::new(&mut r);
+        let n = v.count("n", 0).unwrap();
+        let mut records: Vec<i32> = Vec::new();
+        let err = v.records(n, &mut records, |v, x| v.plain("x", x));
+        assert_eq!(err.unwrap_err().kind, ErrorKind::EmptyElement);
+    }
+
+    /// A body can end inside the last element, whose missing values are then defaults.
+    #[test]
+    fn body_ends_inside_last_element() {
+        let mut w = Writer::new();
+        w.i32(mark::DICTIONARY);
+        w.count(2);
+        w.i32(1);
+        w.u8(1);
+        w.i32(2);
+        let bytes = w.finish();
+        let (items, cut) = read_pairs(&bytes).unwrap();
+        assert_eq!(
+            (items.as_slice(), cut),
+            ([(1, true), (2, false)].as_slice(), Some(3))
+        );
+        assert_eq!(write_pairs(&items, cut), bytes);
+    }
+
+    /// A body to be cut before an element is written whole, as it couldn't be read otherwise.
+    #[test]
+    fn body_isnt_cut_before_an_element() {
+        let items = [(1, true), (0, false)];
+        let bytes = write_pairs(&items, Some(2));
+        assert_eq!(read_pairs(&bytes).unwrap(), (items.to_vec(), None));
     }
 }
